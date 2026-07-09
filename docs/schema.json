@@ -1,0 +1,398 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "",
+    "version": "0.0.0"
+  },
+  "paths": {
+    "/reviews/api/reviews": {
+      "get": {
+        "operationId": "reviews_api_reviews_list",
+        "description": "List a target's reviews (anchor-paginated, published-only for\nnon-moderators), or create a review.\n\n**Permissions:** `IsAuthenticated`",
+        "tags": [
+          "Reviews"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReviewResponse"
+                  }
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      },
+      "post": {
+        "operationId": "reviews_api_reviews_create",
+        "description": "List a target's reviews (anchor-paginated, published-only for\nnon-moderators), or create a review.\n\n**Permissions:** `IsAuthenticated`",
+        "tags": [
+          "Reviews"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewCreateRequest"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewCreateRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/reviews/api/reviews/{review_id}/moderate": {
+      "post": {
+        "operationId": "reviews_api_reviews_moderate_create",
+        "description": "Hide or publish a review (moderation; owner/moderator-only via the\ntarget type's can_moderate callback).\n\n**Permissions:** `IsAuthenticated`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "review_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Reviews"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModerateRequest"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/ModerateRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/ModerateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/reviews/api/reviews/{review_id}/response": {
+      "post": {
+        "operationId": "reviews_api_reviews_response_create",
+        "description": "Attach the target owner's single reply to a review (owner-only via the\ntarget type's can_moderate callback; gated by the allow_response policy).\n\n**Permissions:** `IsAuthenticated`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "review_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Reviews"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RespondRequest"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/RespondRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/RespondRequest"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/reviews/api/reviews/aggregate": {
+      "get": {
+        "operationId": "reviews_api_reviews_aggregate_retrieve",
+        "description": "The module-owned rating aggregate (avg/count over published reviews)\nfor a target.\n\n**Permissions:** `IsAuthenticated`",
+        "tags": [
+          "Reviews"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AggregateResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AggregateResponse": {
+        "type": "object",
+        "description": "Rating aggregate for a target over published reviews.",
+        "properties": {
+          "target_type": {
+            "type": "string",
+            "description": "The host-registered target-type key"
+          },
+          "target_key": {
+            "type": "string",
+            "description": "Opaque host-owned target identifier"
+          },
+          "avg": {
+            "type": "number",
+            "format": "double",
+            "description": "Mean rating (0.0 when count is 0)"
+          },
+          "count": {
+            "type": "integer",
+            "description": "Number of published reviews"
+          }
+        },
+        "required": [
+          "avg",
+          "count",
+          "target_key",
+          "target_type"
+        ]
+      },
+      "ModerateRequest": {
+        "type": "object",
+        "description": "Moderate a review.",
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "hide or publish"
+          },
+          "reason": {
+            "type": "string",
+            "description": "Optional moderation reason (carried in the emitted fact)"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "RespondRequest": {
+        "type": "object",
+        "description": "Attach the target owner's reply to a review.",
+        "properties": {
+          "body": {
+            "type": "string",
+            "description": "Reply text"
+          }
+        }
+      },
+      "ResponseResponse": {
+        "type": "object",
+        "description": "A target owner's reply to a review.",
+        "properties": {
+          "author_id": {
+            "type": "string",
+            "description": "The responder's user id (the target owner)"
+          },
+          "body": {
+            "type": "string",
+            "description": "Reply text"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the reply was written"
+          }
+        },
+        "required": [
+          "author_id",
+          "body",
+          "created_at"
+        ]
+      },
+      "ReviewCreateRequest": {
+        "type": "object",
+        "description": "Create a review.",
+        "properties": {
+          "target_type": {
+            "type": "string",
+            "description": "The host-registered target-type key"
+          },
+          "target_key": {
+            "type": "string",
+            "description": "Opaque host-owned target identifier"
+          },
+          "rating": {
+            "type": "integer",
+            "description": "Numeric rating (RATING_MIN..RATING_MAX)"
+          },
+          "body": {
+            "type": "string",
+            "description": "Optional review body"
+          }
+        },
+        "required": [
+          "rating",
+          "target_key",
+          "target_type"
+        ]
+      },
+      "ReviewResponse": {
+        "type": "object",
+        "description": "A review of an opaque target.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Review id (UUID)"
+          },
+          "target_type": {
+            "type": "string",
+            "description": "The host-registered target-type key"
+          },
+          "target_key": {
+            "type": "string",
+            "description": "Opaque host-owned target identifier"
+          },
+          "author_id": {
+            "type": "string",
+            "description": "Reviewer's user id"
+          },
+          "rating": {
+            "type": "integer",
+            "description": "Numeric rating (RATING_MIN..RATING_MAX)"
+          },
+          "body": {
+            "type": "string",
+            "description": "Free-text review body"
+          },
+          "status": {
+            "type": "string",
+            "description": "pending/published/hidden"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Creation time"
+          },
+          "response": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ResponseResponse"
+              }
+            ],
+            "nullable": true,
+            "description": "The owner's reply, if any"
+          }
+        },
+        "required": [
+          "author_id",
+          "body",
+          "created_at",
+          "id",
+          "rating",
+          "status",
+          "target_key",
+          "target_type"
+        ]
+      }
+    },
+    "securitySchemes": {
+      "JWTCookieAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "stapel_jwt",
+        "description": "JWT token stored in cookie. Login via /auth/admin/ to get the cookie."
+      }
+    }
+  }
+}

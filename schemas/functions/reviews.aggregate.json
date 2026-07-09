@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "reviews.aggregate",
+  "description": "The module-owned rating aggregate (avg/count over published reviews) for an opaque target — a read primitive other services call synchronously.",
+  "type": "object",
+  "required": ["target_type", "target_key"],
+  "properties": {
+    "target_type": { "type": "string" },
+    "target_key":  { "type": "string" }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,56 @@
+{
+  "_comment": "Hand-curated layer of docs/capabilities.json (capability-config.md §2 p.3). The emitter (stapel_reviews/_capabilities.py) merges this over the derived axes; an axis present in conf.py DEFAULTS but missing here (or vice versa) is a loud emission error. Keep business_label/summary in business language — they surface in CTO conversations, not in code. `maturity` is a curated annotation (alpha) not surfaced in capabilities.json.",
+  "maturity": "alpha",
+  "provides": "Target-generic reviews and ratings: an author rates and reviews an opaque host-defined target (target_type + target_key), driven by a per-target-type policy registry (who may review, pre/post moderation, one-review-per-author, owner responses) whose authority questions are answered by host comm callbacks. The module owns the per-target aggregate (avg/count over published reviews) and emits a generic visibility-change fact carrying it, so a host catalog maintains its own rating projection without calling back.",
+  "requires": [
+    {
+      "module": "stapel-core",
+      "optional": false,
+      "reason": "comm bus (review.published / review.hidden emits, reviews.aggregate Function, host policy callbacks), JWT authentication, GDPR provider registry, AppSettings config layer"
+    },
+    {
+      "module": "stapel-auth",
+      "optional": true,
+      "reason": "every endpoint requires an authenticated user (IsAuthenticated); stapel-auth is the shelf's session issuer — any stapel-core-compatible JWT issuer satisfies the check"
+    }
+  ],
+  "extension_points": [
+    {
+      "name": "TARGET_TYPES",
+      "kind": "merge_registry",
+      "summary": "The flagship seam: the module ships knowing NO target types. A host registers what may be reviewed ({type_name: policy}, merged over the empty built-ins; None removes a type). A policy sets moderation (pre/post), one-review-per-author, whether owner responses are allowed, and — crucially — the comm Function names the module calls to ask the host 'may this author review?' (can_review) and 'may this actor moderate/respond?' (can_moderate), so the module never imports a host model."
+    },
+    {
+      "name": "reviews.review.published",
+      "kind": "comm_event",
+      "summary": "The projection hook: when a review becomes visible the module emits this fact carrying the freshly recomputed target aggregate {avg, count}; a host catalog subscribes to maintain its own avg_rating projection per (target_type, target_key) without calling back (§10 projection pattern)."
+    },
+    {
+      "name": "reviews.review.hidden",
+      "kind": "comm_event",
+      "summary": "The counterpart fact: when a review leaves the visible set (moderated out) the module emits it with the updated aggregate, so the host projection stays consistent."
+    },
+    {
+      "name": "reviews.aggregate",
+      "kind": "comm_function",
+      "summary": "The module-owned aggregate (avg/count over published reviews) as a synchronous read primitive other services can call by name — the host projection is a cache of exactly this."
+    },
+    {
+      "name": "serializer_seams",
+      "kind": "class_override",
+      "summary": "Every view declares request/response serializer seams (SerializerSeamMixin) — subclass the view, override the attribute, remount the URL."
+    }
+  ],
+  "axes": {
+    "MODERATION_DEFAULT": {
+      "business_label": "When reviews go live",
+      "summary": "The default moderation mode for target types that do not override it. \"post\" (default): a review is published the moment it is written and a moderator may hide it after the fact — the fast, open model. \"pre\": a review is held pending and stays invisible until a moderator publishes it — the curated model. A target type may override this per type. Values: post, pre.",
+      "behavior": "post: reviews are published on creation and hidden reactively; pre: reviews are created pending and become visible only when a moderator publishes them."
+    },
+    "RESPONSES": {
+      "business_label": "Owner replies to reviews",
+      "summary": "Whether the target owner may attach a single public reply to a review by default. true (default): owner responses are enabled; false: reviews carry no owner reply. A target type may override this per type. Values: true, false.",
+      "behavior": "true: a target owner (as authorized by the type's can_moderate callback) may add one response per review; false: the response endpoint is rejected for the type."
+    }
+  }
+}

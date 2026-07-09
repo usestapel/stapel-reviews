@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "reviews.review.hidden",
+  "description": "A review left the visible set (hidden by a moderator). Carries the freshly recomputed per-target aggregate so a host catalog can maintain its OWN projection of (target_type, target_key) -> {avg, count} without calling back.",
+  "type": "object",
+  "required": ["review_id", "target_type", "target_key", "author_id", "rating", "status", "aggregate"],
+  "properties": {
+    "review_id":   { "type": "string", "format": "uuid" },
+    "target_type": { "type": "string" },
+    "target_key":  { "type": "string" },
+    "author_id":   { "type": "string" },
+    "rating":      { "type": "integer" },
+    "status":      { "type": "string" },
+    "reason":      { "type": "string" },
+    "aggregate": {
+      "type": "object",
+      "required": ["avg", "count"],
+      "properties": {
+        "avg":   { "type": "number" },
+        "count": { "type": "integer" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": true
+}
