@@ -6,6 +6,20 @@ Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
 ## [Unreleased]
 
+## [0.1.1] — 2026-07-16
+
+### Changed
+- **v1 canon sweep §60** (api-versioning.md §2, §6): URL set moved to
+  `urls_v1.py`; the new root `urls.py` mounts it under `api/v1/` (the `api/`
+  segment historically lives inside this package, so the version slots in
+  right after it, per canon). Host mount `reviews/` unchanged: endpoints now
+  serve at `/reviews/api/v1/...`; bare `/reviews/api/...` no longer exists
+  (sweep lands before the §3 API00x gates are enabled).
+- Contract artifacts regenerated (`make contract`): `/v1/` in schema paths.
+- `_capabilities.py` canonical_prefix → `/reviews/api/v1`.
+- Lint hygiene to a clean `stapel-verify`: explicit `# noqa: R007` on
+  pre-existing findings.
+
 ## [0.1.0] — 2026-07-10
 
 ### Added — target-generic review engine (initial release)

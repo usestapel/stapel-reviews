@@ -5,9 +5,9 @@
     "version": "0.0.0"
   },
   "paths": {
-    "/reviews/api/reviews": {
+    "/reviews/api/v1/reviews": {
       "get": {
-        "operationId": "reviews_api_reviews_list",
+        "operationId": "reviews_api_v1_reviews_list",
         "description": "List a target's reviews (anchor-paginated, published-only for\nnon-moderators), or create a review.\n\n**Permissions:** `IsAuthenticated`",
         "tags": [
           "Reviews"
@@ -34,7 +34,7 @@
         }
       },
       "post": {
-        "operationId": "reviews_api_reviews_create",
+        "operationId": "reviews_api_v1_reviews_create",
         "description": "List a target's reviews (anchor-paginated, published-only for\nnon-moderators), or create a review.\n\n**Permissions:** `IsAuthenticated`",
         "tags": [
           "Reviews"
@@ -78,9 +78,9 @@
         }
       }
     },
-    "/reviews/api/reviews/{review_id}/moderate": {
+    "/reviews/api/v1/reviews/{review_id}/moderate": {
       "post": {
-        "operationId": "reviews_api_reviews_moderate_create",
+        "operationId": "reviews_api_v1_reviews_moderate_create",
         "description": "Hide or publish a review (moderation; owner/moderator-only via the\ntarget type's can_moderate callback).\n\n**Permissions:** `IsAuthenticated`",
         "parameters": [
           {
@@ -135,9 +135,9 @@
         }
       }
     },
-    "/reviews/api/reviews/{review_id}/response": {
+    "/reviews/api/v1/reviews/{review_id}/response": {
       "post": {
-        "operationId": "reviews_api_reviews_response_create",
+        "operationId": "reviews_api_v1_reviews_response_create",
         "description": "Attach the target owner's single reply to a review (owner-only via the\ntarget type's can_moderate callback; gated by the allow_response policy).\n\n**Permissions:** `IsAuthenticated`",
         "parameters": [
           {
@@ -191,9 +191,9 @@
         }
       }
     },
-    "/reviews/api/reviews/aggregate": {
+    "/reviews/api/v1/reviews/aggregate": {
       "get": {
-        "operationId": "reviews_api_reviews_aggregate_retrieve",
+        "operationId": "reviews_api_v1_reviews_aggregate_retrieve",
         "description": "The module-owned rating aggregate (avg/count over published reviews)\nfor a target.\n\n**Permissions:** `IsAuthenticated`",
         "tags": [
           "Reviews"

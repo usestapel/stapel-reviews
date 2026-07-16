@@ -3,7 +3,7 @@
 stapel-reviews emits its own contract triad — ``docs/schema.json`` (OpenAPI),
 ``docs/flows.json`` ([], no @flow_step here) and ``docs/errors.json`` — plus
 ``docs/capabilities.json`` (§2 fourth artifact), from a single-module
-``{reviews + core}`` Django instance mounted at ``/reviews/api/``.
+``{reviews + core}`` Django instance mounted at ``/reviews/api/v1/``.
 
 reviews is not mounted in stapel-example-monolith yet, so there is no aggregate
 slice to diff against for byte-identity — standalone validation
@@ -82,8 +82,8 @@ def test_emission_is_deterministic(tmp_path):
 def test_paths_carry_canonical_prefix():
     schema = json.loads((DOCS / "schema.json").read_text())
     assert schema["paths"], "schema has no paths"
-    assert all(p.startswith("/reviews/api/") for p in schema["paths"]), (
-        "schema paths are not mounted at the canonical /reviews/api/ prefix"
+    assert all(p.startswith("/reviews/api/v1/") for p in schema["paths"]), (
+        "schema paths are not mounted at the canonical /reviews/api/v1/ prefix"
     )
 
 

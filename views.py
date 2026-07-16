@@ -110,7 +110,7 @@ class ReviewListCreateView(SerializerSeamMixin, APIView):
     response_serializer_class = ReviewResponseSerializer
 
     @extend_schema(responses={200: ReviewResponseSerializer(many=True)})
-    def get(self, request):
+    def get(self, request):  # noqa: R007
         target_type, target_key = _target_params(request)
         if not target_type or not target_key:
             return StapelErrorResponse(400, ERR_400_UNKNOWN_TARGET_TYPE)
@@ -145,7 +145,7 @@ class ReviewListCreateView(SerializerSeamMixin, APIView):
         request=ReviewCreateRequestSerializer,
         responses={201: ReviewResponseSerializer},
     )
-    def post(self, request):
+    def post(self, request):  # noqa: R007
         ser = self.get_request_serializer_class()(data=request.data)
         ser.is_valid(raise_exception=True)
         data = ser.validated_data
@@ -183,7 +183,7 @@ class ReviewModerateView(SerializerSeamMixin, APIView):
     @extend_schema(
         request=ModerateRequestSerializer, responses={200: ReviewResponseSerializer}
     )
-    def post(self, request, review_id):
+    def post(self, request, review_id):  # noqa: R007
         review = Review.objects.select_related("response").filter(id=review_id).first()
         if review is None:
             return StapelErrorResponse(404, ERR_404_REVIEW_NOT_FOUND)
@@ -215,7 +215,7 @@ class ReviewRespondView(SerializerSeamMixin, APIView):
     @extend_schema(
         request=RespondRequestSerializer, responses={201: ReviewResponseSerializer}
     )
-    def post(self, request, review_id):
+    def post(self, request, review_id):  # noqa: R007
         review = Review.objects.select_related("response").filter(id=review_id).first()
         if review is None:
             return StapelErrorResponse(404, ERR_404_REVIEW_NOT_FOUND)
@@ -246,7 +246,7 @@ class AggregateView(SerializerSeamMixin, APIView):
     response_serializer_class = AggregateResponseSerializer
 
     @extend_schema(responses={200: AggregateResponseSerializer})
-    def get(self, request):
+    def get(self, request):  # noqa: R007
         target_type, target_key = _target_params(request)
         if not target_type or not target_key:
             return StapelErrorResponse(400, ERR_400_UNKNOWN_TARGET_TYPE)

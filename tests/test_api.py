@@ -13,7 +13,7 @@ class TestCreateAndList:
     def test_create_review(self, settings, auth_client, user):
         settings.STAPEL_REVIEWS = {"TARGET_TYPES": {"seller": {}}}
         resp = auth_client.post(
-            "/reviews/api/reviews",
+            "/reviews/api/v1/reviews",
             {"target_type": "seller", "target_key": "s1", "rating": 5, "body": "great"},
             format="json",
         )
@@ -24,7 +24,7 @@ class TestCreateAndList:
     def test_unknown_type_400(self, settings, auth_client):
         settings.STAPEL_REVIEWS = {"TARGET_TYPES": {}}
         resp = auth_client.post(
-            "/reviews/api/reviews",
+            "/reviews/api/v1/reviews",
             {"target_type": "ghost", "target_key": "x", "rating": 5},
             format="json",
         )
@@ -42,7 +42,7 @@ class TestCreateAndList:
             target_type="seller", target_key="s1", author=user, rating=1
         )
         resp = auth_client.get(
-            "/reviews/api/reviews", {"target_type": "seller", "target_key": "s1"}
+            "/reviews/api/v1/reviews", {"target_type": "seller", "target_key": "s1"}
         )
         assert resp.status_code == 200
         assert resp.data["count"] == 1
@@ -50,7 +50,7 @@ class TestCreateAndList:
 
     def test_list_requires_target(self, settings, auth_client):
         settings.STAPEL_REVIEWS = {"TARGET_TYPES": {"seller": {}}}
-        resp = auth_client.get("/reviews/api/reviews")
+        resp = auth_client.get("/reviews/api/v1/reviews")
         assert resp.status_code == 400
 
     def test_moderator_include_all(self, settings, api_client, user, owner_user):
@@ -63,7 +63,7 @@ class TestCreateAndList:
         )
         api_client.force_authenticate(user=owner_user)
         resp = api_client.get(
-            "/reviews/api/reviews",
+            "/reviews/api/v1/reviews",
             {"target_type": "seller", "target_key": "s1", "include": "all"},
         )
         assert resp.status_code == 200
@@ -89,7 +89,7 @@ class TestAnchorWindows:
     def test_first_window_and_next(self, settings, auth_client, user):
         self._seed(settings, user, n=5)
         resp = auth_client.get(
-            "/reviews/api/reviews",
+            "/reviews/api/v1/reviews",
             {"target_type": "seller", "target_key": "s1", "limit": 2},
         )
         assert resp.status_code == 200
@@ -99,7 +99,7 @@ class TestAnchorWindows:
         assert anchor
 
         resp2 = auth_client.get(
-            "/reviews/api/reviews",
+            "/reviews/api/v1/reviews",
             {"target_type": "seller", "target_key": "s1", "limit": 2, "anchor": anchor},
         )
         assert resp2.data["count"] == 2
@@ -116,7 +116,7 @@ class TestAnchorWindows:
             params = {"target_type": "seller", "target_key": "s1", "limit": 2}
             if anchor:
                 params["anchor"] = anchor
-            resp = auth_client.get("/reviews/api/reviews", params)
+            resp = auth_client.get("/reviews/api/v1/reviews", params)
             collected.extend(i["id"] for i in resp.data["items"])
             if not resp.data["has_next"]:
                 break
@@ -135,7 +135,7 @@ class TestAggregateEndpoint:
             target_type="seller", target_key="s1", author=other_user, rating=1
         )
         resp = auth_client.get(
-            "/reviews/api/reviews/aggregate",
+            "/reviews/api/v1/reviews/aggregate",
             {"target_type": "seller", "target_key": "s1"},
         )
         assert resp.status_code == 200
@@ -155,7 +155,7 @@ class TestModerateAndRespondEndpoints:
         )
         api_client.force_authenticate(user=owner_user)
         resp = api_client.post(
-            f"/reviews/api/reviews/{review.id}/moderate",
+            f"/reviews/api/v1/reviews/{review.id}/moderate",
             {"action": "hide", "reason": "spam"},
             format="json",
         )
@@ -172,7 +172,7 @@ class TestModerateAndRespondEndpoints:
         )
         api_client.force_authenticate(user=other_user)
         resp = api_client.post(
-            f"/reviews/api/reviews/{review.id}/moderate",
+            f"/reviews/api/v1/reviews/{review.id}/moderate",
             {"action": "hide"},
             format="json",
         )
@@ -183,7 +183,7 @@ class TestModerateAndRespondEndpoints:
         import uuid
 
         resp = auth_client.post(
-            f"/reviews/api/reviews/{uuid.uuid4()}/moderate",
+            f"/reviews/api/v1/reviews/{uuid.uuid4()}/moderate",
             {"action": "hide"},
             format="json",
         )
@@ -199,7 +199,7 @@ class TestModerateAndRespondEndpoints:
         )
         api_client.force_authenticate(user=owner_user)
         resp = api_client.post(
-            f"/reviews/api/reviews/{review.id}/response",
+            f"/reviews/api/v1/reviews/{review.id}/response",
             {"body": "thank you"},
             format="json",
         )
@@ -216,7 +216,7 @@ class TestModerateAndRespondEndpoints:
         )
         api_client.force_authenticate(user=owner_user)
         resp = api_client.post(
-            f"/reviews/api/reviews/{review.id}/response",
+            f"/reviews/api/v1/reviews/{review.id}/response",
             {"body": "no"},
             format="json",
         )
@@ -225,6 +225,6 @@ class TestModerateAndRespondEndpoints:
     def test_requires_auth(self, settings, api_client):
         settings.STAPEL_REVIEWS = {"TARGET_TYPES": {"seller": {}}}
         resp = api_client.get(
-            "/reviews/api/reviews", {"target_type": "seller", "target_key": "s1"}
+            "/reviews/api/v1/reviews", {"target_type": "seller", "target_key": "s1"}
         )
         assert resp.status_code in (401, 403)

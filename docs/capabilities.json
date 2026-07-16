@@ -1,6 +1,6 @@
 {
   "module": "stapel-reviews",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "provides": "Target-generic reviews and ratings: an author rates and reviews an opaque host-defined target (target_type + target_key), driven by a per-target-type policy registry (who may review, pre/post moderation, one-review-per-author, owner responses) whose authority questions are answered by host comm callbacks. The module owns the per-target aggregate (avg/count over published reviews) and emits a generic visibility-change fact carrying it, so a host catalog maintains its own rating projection without calling back.",
   "axes": [
     {
