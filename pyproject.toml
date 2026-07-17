@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stapel-reviews"
-version = "0.1.4"
+version = "0.1.5"
 description = "Target-generic reviews and ratings for the Stapel framework"
 readme = "README.md"
 license = { text = "MIT" }
