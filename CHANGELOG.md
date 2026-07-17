@@ -6,6 +6,14 @@ Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-07-17
+
+Fleet follow-up to stapel-core 0.12.0 (legacy shim sweep). No source
+changes needed. Full suite green against core 0.12.0.
+
+### Changed
+- `stapel-core` dependency ceiling `<0.12` → `<0.13`.
+
 ## [0.1.3] — 2026-07-17
 
 ### Fixed

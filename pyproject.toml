@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stapel-reviews"
-version = "0.1.3"
+version = "0.1.4"
 description = "Target-generic reviews and ratings for the Stapel framework"
 readme = "README.md"
 license = { text = "MIT" }
@@ -23,7 +23,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "stapel-core>=0.10,<0.12",
+    "stapel-core>=0.10,<0.13",
 ]
 
 [project.urls]
