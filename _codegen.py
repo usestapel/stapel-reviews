@@ -1,8 +1,8 @@
 """stapel-reviews contract-emission harness (contract-pipeline.md §2-3).
 
 Emits the module's own contract triad into ``docs/`` from a single-module
-``{reviews + core}`` Django instance mounted at the canonical ``reviews/api/``
-prefix:
+``{reviews + core}`` Django instance mounted at the canonical
+``reviews/api/v1/`` prefix:
 
   docs/schema.json   drf-spectacular OpenAPI, this module only, canonical prefix
   docs/flows.json    generate_flow_docs machine artifact ([] — no @flow_step here)
@@ -81,7 +81,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="stapel-reviews-contract",
         description="Emit this module's contract triad (schema.json + flows.json "
-        "+ errors.json) into --out, canonical /reviews/api/ prefix.",
+        "+ errors.json) into --out, canonical /reviews/api/v1/ prefix.",
     )
     parser.add_argument(
         "--out",

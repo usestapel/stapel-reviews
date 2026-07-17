@@ -6,6 +6,14 @@ Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
 ## [Unreleased]
 
+## [0.1.3] — 2026-07-17
+
+### Fixed
+- Legacy-doc sweep: stale pre-v1 `/reviews/api/` prefix references corrected to
+  the canonical `/reviews/api/v1/` in `_codegen.py`, `codegen_urls.py`,
+  `MODULE.md` and the `Makefile` header (docs/comments only — the URL surface
+  has been v1-only since 0.1.1; no code or wire changes, nothing removed).
+
 ## [0.1.2] — 2026-07-17
 
 ### Changed

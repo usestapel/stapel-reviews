@@ -2,7 +2,7 @@
 #
 # This module emits its OWN contract triad (schema.json + flows.json + errors.json)
 # plus capabilities.json, from a single-module {reviews + core} Django instance
-# mounted at the canonical /reviews/api/ prefix (see _codegen.py /
+# mounted at the canonical /reviews/api/v1/ prefix (see _codegen.py /
 # _codegen_settings.py / codegen_urls.py).
 #
 # PYTHON must have the module + its deps importable (the workspace venv, or a CI

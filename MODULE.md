@@ -126,7 +126,7 @@ the URL. No need to rewrite HTTP method bodies.
 
 `make contract` emits `docs/{schema,flows,errors,capabilities}.json` from a
 single-module `{reviews + core}` Django instance mounted at the canonical
-`/reviews/api/` prefix. Regenerate after any serializer/view/url/error-key
+`/reviews/api/v1/` prefix. Regenerate after any serializer/view/url/error-key
 change and commit; `tests/test_contract.py` is the drift gate (Python 3.12
 only — drf-spectacular renders differently across minors). `flows.json` is `[]`
 (no `@flow_step` annotations).
