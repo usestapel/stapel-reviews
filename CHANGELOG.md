@@ -6,6 +6,17 @@ Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-08-02
+
+Packaging/docs catch-up, no behavior change:
+
+- CI tests the Python the stand actually runs.
+- Contract documents ship in the wheel (`package-data`) (#184).
+- Badge canon + Python 3.14 classifier.
+- `docs/llms.txt` — the fifth contract artifact (badge-canon §3), emitted
+  by `stapel_tools.llms_txt` and checked by the `make contract-check`
+  drift gate.
+
 ## [0.1.6] - 2026-07-17
 
 Fix-up #2: 0.1.5's regen still baked the old version into
