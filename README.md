@@ -6,6 +6,7 @@
 [![downloads](https://static.pepy.tech/badge/stapel-reviews/month)](https://pepy.tech/project/stapel-reviews)
 [![python](https://img.shields.io/pypi/pyversions/stapel-reviews?logo=python&logoColor=white)](https://pypi.org/project/stapel-reviews/)
 [![license](https://img.shields.io/github/license/usestapel/stapel-reviews)](https://github.com/usestapel/stapel-reviews/blob/main/LICENSE)
+[![llms.txt](https://img.shields.io/badge/llms.txt-blue)](https://github.com/usestapel/stapel-reviews/blob/main/docs/llms.txt)
 
 Target-generic reviews and ratings for the [Stapel framework](https://github.com/usestapel) —
 composable Django apps that deploy as a monolith or as microservices

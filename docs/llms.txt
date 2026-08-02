@@ -1,0 +1,91 @@
+# stapel-reviews 0.1.7
+
+Target-generic reviews and ratings: an author rates and reviews an opaque host-defined target (target_type + target_key), driven by a per-target-type policy registry (who may review, pre/post moderation, one-review-per-author, owner responses) whose authority questions are answered by host comm callbacks. The module owns the per-target aggregate (avg/count over published reviews) and emits a generic visibility-change fact carrying it, so a host catalog maintains its own rating projection without calling back.
+
+Contract: axes 2 · extension points 5 · operations 5 · error codes 50.
+Generated from docs/capabilities.json by `stapel-llms-txt` — do not edit; drift-gated by `make contract-check`.
+
+## Configuration axes — what a product switches on
+Settings keys; `default` is what you get by saying nothing. Turning an axis off unmounts the operations it gates.
+- MODERATION_DEFAULT [enum, default "post"] — When reviews go live
+  The default moderation mode for target types that do not override it. "post" (default): a review is published the moment it is written and a moderator may hide it after the fact — the fast, open model. "pre": a review is held pending and stays invisible until a moderator publishes it — the curated model. A target type may override this per type. Values: post, pre.
+- RESPONSES [bool, default true] — Owner replies to reviews
+  Whether the target owner may attach a single public reply to a review by default. true (default): owner responses are enabled; false: reviews carry no owner reply. A target type may override this per type. Values: true, false.
+
+## Extension points — what a product replaces, fork-free
+- TARGET_TYPES [merge_registry]
+  The flagship seam: the module ships knowing NO target types. A host registers what may be reviewed ({type_name: policy}, merged over the empty built-ins; None removes a type). A policy sets moderation (pre/post), one-review-per-author, whether owner responses are allowed, and — crucially — the comm Function names the module calls to ask the host 'may this author review?' (can_review) and 'may this actor moderate/respond?' (can_moderate), so the module never imports a host model.
+- reviews.aggregate [comm_function]
+  The module-owned aggregate (avg/count over published reviews) as a synchronous read primitive other services can call by name — the host projection is a cache of exactly this.
+- reviews.review.hidden [comm_event]
+  The counterpart fact: when a review leaves the visible set (moderated out) the module emits it with the updated aggregate, so the host projection stays consistent.
+- reviews.review.published [comm_event]
+  The projection hook: when a review becomes visible the module emits this fact carrying the freshly recomputed target aggregate {avg, count}; a host catalog subscribes to maintain its own avg_rating projection per (target_type, target_key) without calling back (§10 projection pattern).
+- serializer_seams [class_override]
+  Every view declares request/response serializer seams (SerializerSeamMixin) — subclass the view, override the attribute, remount the URL.
+
+## Fits with — fleet dependencies
+- stapel-auth (optional) — every endpoint requires an authenticated user (IsAuthenticated); stapel-auth is the shelf's session issuer — any stapel-core-compatible JWT issuer satisfies the check
+- stapel-core (required) — comm bus (review.published / review.hidden emits, reviews.aggregate Function, host policy callbacks), JWT authentication, GDPR provider registry, AppSettings config layer
+
+## HTTP operations (5) — call by operationId, never by a typed path
+Paths are relative to `/reviews/api/v1/`.
+### Reviews
+- GET /reviews/aggregate — reviews_api_v1_reviews_aggregate_retrieve
+- POST /reviews — reviews_api_v1_reviews_create
+- GET /reviews — reviews_api_v1_reviews_list
+- POST /reviews/{review_id}/moderate — reviews_api_v1_reviews_moderate_create
+- POST /reviews/{review_id}/response — reviews_api_v1_reviews_response_create
+
+## Error codes (50) — the StapelError envelope
+Render `t(code, params)`; branch UX on the remediation. Localized text lives in docs/errors.<lang>.md, not here.
+- error.400.bad_request [400] fix_input
+- error.400.captcha_invalid [400] retry
+- error.400.captcha_required [400] retry
+- error.400.expected_list [400] fix_input
+- error.400.field.blank [400] fix_input {field}
+- error.400.field.does_not_exist [400] fix_input {field}
+- error.400.field.invalid [400] fix_input {field}
+- error.400.field.invalid_choice [400] fix_input {field}
+- error.400.field.max_length [400] fix_input {field,max_length}
+- error.400.field.max_value [400] fix_input {field,max_value}
+- error.400.field.min_length [400] fix_input {field,min_length}
+- error.400.field.min_value [400] fix_input {field,min_value}
+- error.400.field.null [400] fix_input {field}
+- error.400.field.required [400] fix_input {field}
+- error.400.field.unique [400] fix_input {field}
+- error.400.invalid_ad_id [400] fix_input
+- error.400.reviews_duplicate_review [400] fix_input
+- error.400.reviews_invalid_moderation_action [400] fix_input
+- error.400.reviews_invalid_rating [400] fix_input
+- error.400.reviews_response_not_allowed [400] fix_input
+- error.400.reviews_unknown_target_type [400] fix_input
+- error.400.validation_error [400] fix_input
+- error.400.verification_failed [400] verify
+- error.400.verification_invalid_factor [400] verify
+- error.401.unauthorized [401] reauthenticate
+- error.402.payment_required [402] retry
+- error.403.forbidden [403] retry
+- error.403.network_blocked [403] contact_support
+- error.403.reviews_cannot_moderate [403] retry
+- error.403.reviews_cannot_review [403] retry
+- error.403.verification_enrollment_required [403] verify
+- error.403.verification_required [403] verify
+- error.404.ad_not_found [404] retry
+- error.404.not_found [404] retry
+- error.404.reviews_review_not_found [404] retry
+- error.404.verification_challenge_not_found [404] verify
+- error.405.method_not_allowed [405] retry
+- error.406.not_acceptable [406] retry
+- error.408.request_timeout [408] retry
+- error.409.conflict [409] fix_input
+- error.409.reviews_already_responded [409] fix_input
+- error.410.gone [410] retry
+- error.413.payload_too_large [413] retry
+- error.415.unsupported_media_type [415] retry
+- error.422.unprocessable_entity [422] wait_and_retry
+- error.423.locked [423] wait_and_retry
+- error.423.verification_locked [423] wait_and_retry
+- error.429.rate_limit [429] wait_and_retry {retry_after_minutes}
+- error.429.too_many_requests [429] wait_and_retry
+- error.500.internal [500] contact_support
