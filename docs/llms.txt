@@ -2,7 +2,7 @@
 
 Target-generic reviews and ratings: an author rates and reviews an opaque host-defined target (target_type + target_key), driven by a per-target-type policy registry (who may review, pre/post moderation, one-review-per-author, owner responses) whose authority questions are answered by host comm callbacks. The module owns the per-target aggregate (avg/count over published reviews) and emits a generic visibility-change fact carrying it, so a host catalog maintains its own rating projection without calling back.
 
-Contract: axes 2 · extension points 5 · operations 5 · error codes 50.
+Contract: axes 2 · surface 11 · extension points 5 · operations 5 · error codes 50.
 Generated from docs/capabilities.json by `stapel-llms-txt` — do not edit; drift-gated by `make contract-check`.
 
 ## Configuration axes — what a product switches on
@@ -11,6 +11,43 @@ Settings keys; `default` is what you get by saying nothing. Turning an axis off 
   The default moderation mode for target types that do not override it. "post" (default): a review is published the moment it is written and a moderator may hide it after the fact — the fast, open model. "pre": a review is held pending and stays invisible until a moderator publishes it — the curated model. A target type may override this per type. Values: post, pre.
 - RESPONSES [bool, default true] — Owner replies to reviews
   Whether the target owner may attach a single public reply to a review by default. true (default): owner responses are enabled; false: reviews carry no owner reply. A target type may override this per type. Values: true, false.
+
+## Usage surface — call these before writing your own
+This is the answer to "does Stapel already have something for X?". `instead of` names the outside symbol this one displaces.
+### gate_function
+- moderate_review — stapel_reviews.services.moderate_review
+  instead of: stapel_reviews.models.Review.status
+  Hide or publish a review as a moderator: the type's can_moderate callback is asked first (fail-closed), the status flips only when it actually changes, and the matching visibility fact goes out with the recomputed aggregate in the same transaction. Flipping Review.status by hand skips the authorization AND leaves every host catalog holding the previous average forever — the fact is the only thing that tells a projection to move.
+### predicate
+- check_can_moderate — stapel_reviews.registry.check_can_moderate
+  instead of: stapel_core.comm.call
+  "May this actor moderate or respond to reviews of this target" — the same host-callback dispatch as check_can_review, but fail-CLOSED: a policy naming no can_moderate callback denies everyone rather than quietly opening the moderation queue. Ask it before rendering any moderation or owner-reply affordance, and do not re-derive ownership from your own models — the module authorized the write off this exact answer, so a second opinion only produces a button that 403s.
+- check_can_review — stapel_reviews.registry.check_can_review
+  instead of: stapel_core.comm.call
+  "May this author review this target right now" — resolves the policy's can_review callback name and asks the host over comm, where no callback means unrestricted. This is the call for a view or a template that wants to show or hide the review form before anyone types anything; use it rather than dispatching the callback name yourself, because the None-means-open convention and the deliberate refusal to fail open on a broken gate both live here, and a second implementation of them will not agree with the one guarding the write.
+### factory
+- aggregate — stapel_reviews.services.aggregate
+  instead of: stapel_reviews.models.Review.objects.aggregate
+  The module-owned rating aggregate of a target — mean and count over PUBLISHED reviews, avg 0.0 at count 0. It is the same value the reviews.aggregate comm Function returns and the same one every reviews.review.published/hidden fact carries, so a fresh in-process read and the last projection event cannot disagree. Do not average Review rows yourself: visibility is a status SET, and an Avg() that treats "not hidden" as the complement publishes a rating no reader can see.
+- create_review — stapel_reviews.services.create_review
+  instead of: stapel_reviews.models.Review.objects.create
+  The whole write path in one call: the type must be registered, the rating must sit inside [RATING_MIN, RATING_MAX], one_per_author is enforced, the host's can_review callback is asked, and the review lands published (post-moderation) or pending (pre-moderation) with the published fact emitted inside the same transaction. A row created around this is unauthorized, unmoderated and invisible to every projection subscribed to the aggregate.
+- get_target_types — stapel_reviews.registry.get_target_types
+  instead of: django.conf.settings.STAPEL_REVIEWS["TARGET_TYPES"], stapel_reviews.registry.BUILTIN_TARGET_TYPES
+  The effective registry — built-ins under the TARGET_TYPES setting under the runtime registrations, with a None entry meaning "removed" and not "present but empty". Read this, not the setting: a host that indexes STAPEL_REVIEWS["TARGET_TYPES"] directly sees neither the runtime registrations nor the removals, so its "can this be reviewed" picker disagrees with what the API accepts.
+- list_reviews — stapel_reviews.services.list_reviews
+  instead of: stapel_reviews.models.Review.objects.filter
+  A target's reviews, newest first, with the visibility rule already applied: published only by default, and pending/hidden as well under include_all for a caller you have separately authorized as a moderator. VISIBLE_STATUSES is this module's definition of "visible"; a host filter spelled status == "published" agrees with it today and diverges the day another visible status exists.
+- register_target_type — stapel_reviews.registry.register_target_type
+  Declare what may be reviewed — a type name plus its policy (who may review, pre/post moderation, one-per-author, owner responses, the two host callback names) — from an AppConfig.ready() or a test. The registry ships EMPTY, so until something registers a type every write is a 400; this and the STAPEL_REVIEWS["TARGET_TYPES"] setting (which this layer merges over) are the only two ways in, and both are the alternative to hand-rolling a "what is reviewable" branch in your own catalog. policy=None removes a type a lower layer provided.
+- reset_target_types — stapel_reviews.registry.reset_target_types
+  Drop the runtime registrations, leaving the settings layer untouched — a TEST lever, and the reason the runtime overrides are kept in their own dict: reviews' own conftest calls it between cases so a type registered by one test cannot leak into the next. Product code that finds itself calling this is undoing a registration that belongs in STAPEL_REVIEWS["TARGET_TYPES"], where it is declarative and survives a process reload.
+- resolve_policy — stapel_reviews.registry.resolve_policy
+  instead of: django.conf.settings.STAPEL_REVIEWS["TARGET_TYPES"]
+  One type's fully-resolved policy: every key the engine relies on is present, MODERATION_DEFAULT and RESPONSES already folded in, and an unregistered type raises UnknownTargetType rather than answering an empty dict. Reach for this instead of a raw TARGET_TYPES entry — a policy that omits "moderation" is not a type with no moderation, it is one inheriting the axis, and reading it raw is exactly how a type silently loses pre-moderation.
+- respond — stapel_reviews.services.respond
+  instead of: stapel_reviews.models.Response.objects.create
+  Attach the target owner's single public reply to a review — honours the type's allow_response (the RESPONSES axis, overridable per type), authorizes the author through the same can_moderate ownership gate as moderation, and refuses a second response. Both of those questions are easy to forget at a bare row create, and the second one is the difference between an owner reply and anyone replying as the owner.
 
 ## Extension points — what a product replaces, fork-free
 - TARGET_TYPES [merge_registry]
