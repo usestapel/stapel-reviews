@@ -24,7 +24,7 @@ pip install stapel-reviews
 
 | Fact | Value |
 |---|---|
-| Version | `0.1.8` |
+| Version | `0.1.9` |
 | Python | `>=3.11` (3.11, 3.12, 3.13, 3.14) |
 | HTTP operations | 5 |
 | Config axes | 2 |
