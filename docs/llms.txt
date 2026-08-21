@@ -1,8 +1,8 @@
-# stapel-reviews 0.1.9
+# stapel-reviews 0.2.0
 
 Target-generic reviews and ratings: an author rates and reviews an opaque host-defined target (target_type + target_key), driven by a per-target-type policy registry (who may review, pre/post moderation, one-review-per-author, owner responses) whose authority questions are answered by host comm callbacks. The module owns the per-target aggregate (avg/count over published reviews) and emits a generic visibility-change fact carrying it, so a host catalog maintains its own rating projection without calling back.
 
-Contract: axes 2 · surface 11 · extension points 5 · operations 5 · error codes 50.
+Contract: axes 2 · surface 15 · extension points 9 · operations 5 · error codes 51.
 Generated from docs/capabilities.json by `stapel-llms-txt` — do not edit; drift-gated by `make contract-check`.
 
 ## Configuration axes — what a product switches on
@@ -15,6 +15,9 @@ Settings keys; `default` is what you get by saying nothing. Turning an axis off 
 ## Usage surface — call these before writing your own
 This is the answer to "does Stapel already have something for X?". `instead of` names the outside symbol this one displaces.
 ### gate_function
+- apply_verdict — stapel_reviews.services.apply_verdict
+  instead of: stapel_reviews.models.Review.status
+  Apply an external moderation module's verdict as the SYSTEM actor: approved publishes, rejected hides, needs_review and dismissed move nothing, an unknown word raises. The one caller allowed past the fail-closed can_moderate gate — authorization already happened where the verdict was made. Idempotent by state: a redelivered verdict writes and emits nothing.
 - moderate_review — stapel_reviews.services.moderate_review
   instead of: stapel_reviews.models.Review.status
   Hide or publish a review as a moderator: the type's can_moderate callback is asked first (fail-closed), the status flips only when it actually changes, and the matching visibility fact goes out with the recomputed aggregate in the same transaction. Flipping Review.status by hand skips the authorization AND leaves every host catalog holding the previous average forever — the fact is the only thing that tells a projection to move.
@@ -29,6 +32,12 @@ This is the answer to "does Stapel already have something for X?". `instead of` 
 - aggregate — stapel_reviews.services.aggregate
   instead of: stapel_reviews.models.Review.objects.aggregate
   The module-owned rating aggregate of a target — mean and count over PUBLISHED reviews, avg 0.0 at count 0. It is the same value the reviews.aggregate comm Function returns and the same one every reviews.review.published/hidden fact carries, so a fresh in-process read and the last projection event cannot disagree. Do not average Review rows yourself: visibility is a status SET, and an Avg() that treats "not hidden" as the complement publishes a rating no reader can see.
+- aggregates_by_keys — stapel_reviews.services.aggregates_by_keys
+  instead of: stapel_reviews.models.Review.objects.aggregate
+  The batch aggregate: one query for many target keys, answering {key: {avg, count}} with unreviewed keys ABSENT rather than zeroed — "nobody rated it" is not "everyone rated it 0". Looping aggregate() per row is the N+1 it removes. Exposed as reviews.aggregates_by_keys, the live_query a host Projection reads through.
+- aggregates_export — stapel_reviews.services.aggregates_export
+  instead of: stapel_reviews.models.Review.objects.values
+  Every target's aggregate as a keyset-paged snapshot — the source_of_truth stapel-core's rebuild()/drift_check() page through as reviews.aggregates_export. Rows carry a seq on an Event's clock, so a fact arriving mid-rebuild outranks the snapshot row. Paging Review rows yourself re-implements the visibility rule and yields no ordering token.
 - create_review — stapel_reviews.services.create_review
   instead of: stapel_reviews.models.Review.objects.create
   The whole write path in one call: the type must be registered, the rating must sit inside [RATING_MIN, RATING_MAX], one_per_author is enforced, the host's can_review callback is asked, and the review lands published (post-moderation) or pending (pre-moderation) with the published fact emitted inside the same transaction. A row created around this is unauthorized, unmoderated and invisible to every projection subscribed to the aggregate.
@@ -38,6 +47,9 @@ This is the answer to "does Stapel already have something for X?". `instead of` 
 - list_reviews — stapel_reviews.services.list_reviews
   instead of: stapel_reviews.models.Review.objects.filter
   A target's reviews, newest first, with the visibility rule already applied: published only by default, and pending/hidden as well under include_all for a caller you have separately authorized as a moderator. VISIBLE_STATUSES is this module's definition of "visible"; a host filter spelled status == "published" agrees with it today and diverges the day another visible status exists.
+- moderation_content — stapel_reviews.services.moderation_content
+  instead of: stapel_reviews.models.Review.objects.get
+  A review's content in the shape a moderation module screens and renders a case card from. Reach for it (as the reviews.moderation_content Function) instead of putting review bodies on the bus: content read when it is looked at has not gone stale, and does not sit in a retention-free outbox.
 - register_target_type — stapel_reviews.registry.register_target_type
   Declare what may be reviewed — a type name plus its policy (who may review, pre/post moderation, one-per-author, owner responses, the two host callback names) — from an AppConfig.ready() or a test. The registry ships EMPTY, so until something registers a type every write is a 400; this and the STAPEL_REVIEWS["TARGET_TYPES"] setting (which this layer merges over) are the only two ways in, and both are the alternative to hand-rolling a "what is reviewable" branch in your own catalog. policy=None removes a type a lower layer provided.
 - reset_target_types — stapel_reviews.registry.reset_target_types
@@ -52,8 +64,16 @@ This is the answer to "does Stapel already have something for X?". `instead of` 
 ## Extension points — what a product replaces, fork-free
 - TARGET_TYPES [merge_registry]
   The flagship seam: the module ships knowing NO target types. A host registers what may be reviewed ({type_name: policy}, merged over the empty built-ins; None removes a type). A policy sets moderation (pre/post), one-review-per-author, whether owner responses are allowed, and — crucially — the comm Function names the module calls to ask the host 'may this author review?' (can_review) and 'may this actor moderate/respond?' (can_moderate), so the module never imports a host model.
+- moderation.completed [comm_event]
+  The verdict this module CONSUMES: a resolved case about a review hides or publishes it, applied as the system actor — the one bypass of the fail-closed can_moderate gate, since authorization already happened in the moderation module. MODERATION_TARGET_TYPE names which target_type is ours.
 - reviews.aggregate [comm_function]
   The module-owned aggregate (avg/count over published reviews) as a synchronous read primitive other services can call by name — the host projection is a cache of exactly this.
+- reviews.aggregates_by_keys [comm_function]
+  The batch aggregate: many target keys in one call, omitting keys nobody has reviewed. The live_query half of a host rating Projection — in local mode stapel-core reads ratings straight through it, so the host keeps no table and cannot go stale.
+- reviews.aggregates_export [comm_function]
+  The cursor-paged snapshot of every target's aggregate — the source_of_truth half of that same Projection, read by rebuild() and drift_check(). Rows carry a seq on an Event's clock, so a rebuild can run while facts keep arriving without overwriting fresher state.
+- reviews.moderation_content [comm_function]
+  A review's content for an external moderation module's screening and moderator card. Identifiers travel on the bus and content is read when it is looked at, so a case opened hours ago shows the review as it is now.
 - reviews.review.hidden [comm_event]
   The counterpart fact: when a review leaves the visible set (moderated out) the module emits it with the updated aggregate, so the host projection stays consistent.
 - reviews.review.published [comm_event]
@@ -74,7 +94,7 @@ Paths are relative to `/reviews/api/v1/`.
 - POST /reviews/{review_id}/moderate — reviews_api_v1_reviews_moderate_create
 - POST /reviews/{review_id}/response — reviews_api_v1_reviews_response_create
 
-## Error codes (50) — the StapelError envelope
+## Error codes (51) — the StapelError envelope
 Render `t(code, params)`; branch UX on the remediation. Localized text lives in docs/errors.<lang>.md, not here.
 - error.400.bad_request [400] fix_input
 - error.400.captcha_invalid [400] retry
@@ -126,3 +146,4 @@ Render `t(code, params)`; branch UX on the remediation. Localized text lives in 
 - error.429.rate_limit [429] wait_and_retry {retry_after_minutes}
 - error.429.too_many_requests [429] wait_and_retry
 - error.500.internal [500] contact_support
+- error.503.mandate_unavailable [503] retry

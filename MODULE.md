@@ -92,6 +92,56 @@ a no-op and emits nothing.
 synchronous read primitive other services can call by name. The host projection
 is a cache of exactly this. Schema: `schemas/functions/reviews.aggregate.json`.
 
+### 5. Batch aggregate Functions — the two halves of a host `Projection`
+
+A host rating projection is declared against two owner Functions, and both are
+here:
+
+- `reviews.aggregates_by_keys` — `{keys, target_type?} -> {key: {avg, count}}`.
+  The **`live_query`** half: in local mode `stapel_core.comm.projections.read()`
+  calls it and hands the answer straight to the caller, so the host keeps no
+  table. Keys nobody has reviewed are *absent* from the answer, never zeroed.
+  The core primitive sends only `keys`; `target_type` exists for callers that
+  know it and matters when two target types share a key.
+- `reviews.aggregates_export` — `{cursor?, limit?} -> {rows, cursor, total}`.
+  The **`source_of_truth`** half, read by `rebuild()` and `drift_check()`. Rows
+  carry `target_key`, `target_type`, `avg`, `count` and a `seq` in **unix
+  milliseconds** — an Event's clock, so a live fact arriving mid-rebuild
+  outranks the snapshot row. Paging is keyset over `(target_type, target_key)`;
+  `total` is reported on the first page only.
+
+Schemas: `schemas/functions/reviews.aggregates_{by_keys,export}.json`.
+
+### 6. Moderation seam — `moderation.completed` (consume) + `reviews.moderation_content`
+
+An external moderation module owns the *decision*; this module owns *applying*
+it. Its verdict arrives as `moderation.completed`; when `target_type` matches
+`MODERATION_TARGET_TYPE` (default `"review"`) the `target_key` is a review id
+and the review is hidden (`rejected`) or published (`approved`). `needs_review`
+and `dismissed` deliberately move nothing — the first says the automation
+abstained, the second speaks about a report rather than about content.
+
+The verdict is applied as `services.SYSTEM_ACTOR`, which is the **only** way
+past the fail-closed `can_moderate` gate (seam #2). That gate is right for
+humans and exactly wrong for the platform's own decision: authorization already
+happened in the moderation module, and a target type with no `can_moderate`
+callback would otherwise deny the platform a verdict about its own content. The
+bypass is recognized by object identity, so nothing can imitate it, and it
+buys visibility only — `respond()` refuses the system actor outright.
+
+Idempotency is **by state**, not by event id: a redelivered verdict finds the
+review already in the decided status and returns without a write and without a
+fact. No processed-event table exists or is needed.
+
+`reviews.moderation_content` — `{review_id} -> {text, title, language, media,
+author_id, url, rating, status, target_type, target_key, created_at}` — is the
+read half: identifiers travel on the bus, content is fetched when it is looked
+at, so a moderator opening a case hours later reads the review as it is now. A
+review has no title, declared language, media or public per-review URL, so
+those four come back empty rather than invented. Schemas:
+`schemas/consumes/moderation.completed.json`,
+`schemas/functions/reviews.moderation_content.json`.
+
 ### Settings — `STAPEL_REVIEWS` namespace (`conf.py`)
 
 | Key | Default | Meaning |
@@ -101,6 +151,7 @@ is a cache of exactly this. Schema: `schemas/functions/reviews.aggregate.json`.
 | `RESPONSES` | `True` | Owner responses allowed by default — **config axis** |
 | `RATING_MIN` | `1` | Inclusive minimum rating (tuning knob) |
 | `RATING_MAX` | `5` | Inclusive maximum rating (tuning knob) |
+| `MODERATION_TARGET_TYPE` | `"review"` | The verdict `target_type` that means "a review" (seam #6, tuning knob) |
 
 `MODERATION_DEFAULT` and `RESPONSES` are the two CTO-facing config axes
 (capability-config.md §16 — behavioral, not gating). `TARGET_TYPES` is the
@@ -141,3 +192,10 @@ only — drf-spectacular renders differently across minors). `flows.json` is `[]
   to the published/hidden facts and project.
 - **Do not** fail *open* on a missing `can_moderate` callback — an unset
   moderator gate denies, it never silently authorizes.
+- **Do not** widen `SYSTEM_ACTOR` into a general "trusted caller" flag. It has
+  exactly one caller (`apply_verdict`, on a verdict another module already
+  authorized); a boolean threaded through `moderate_review` would make the
+  bypass reachable from anywhere a `True` can be typed.
+- **Do not** dedupe the verdict consumer by `event_id`. Idempotency is by
+  state; a processed-event table is a second source of truth that has to be
+  retained, indexed and reconciled with the state that already answers.

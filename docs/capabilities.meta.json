@@ -36,6 +36,26 @@
       "summary": "The module-owned aggregate (avg/count over published reviews) as a synchronous read primitive other services can call by name — the host projection is a cache of exactly this."
     },
     {
+      "name": "reviews.aggregates_by_keys",
+      "kind": "comm_function",
+      "summary": "The batch aggregate: many target keys in one call, omitting keys nobody has reviewed. The live_query half of a host rating Projection — in local mode stapel-core reads ratings straight through it, so the host keeps no table and cannot go stale."
+    },
+    {
+      "name": "reviews.aggregates_export",
+      "kind": "comm_function",
+      "summary": "The cursor-paged snapshot of every target's aggregate — the source_of_truth half of that same Projection, read by rebuild() and drift_check(). Rows carry a seq on an Event's clock, so a rebuild can run while facts keep arriving without overwriting fresher state."
+    },
+    {
+      "name": "reviews.moderation_content",
+      "kind": "comm_function",
+      "summary": "A review's content for an external moderation module's screening and moderator card. Identifiers travel on the bus and content is read when it is looked at, so a case opened hours ago shows the review as it is now."
+    },
+    {
+      "name": "moderation.completed",
+      "kind": "comm_event",
+      "summary": "The verdict this module CONSUMES: a resolved case about a review hides or publishes it, applied as the system actor — the one bypass of the fail-closed can_moderate gate, since authorization already happened in the moderation module. MODERATION_TARGET_TYPE names which target_type is ours."
+    },
+    {
       "name": "serializer_seams",
       "kind": "class_override",
       "summary": "Every view declares request/response serializer seams (SerializerSeamMixin) — subclass the view, override the attribute, remount the URL."
@@ -106,6 +126,34 @@
       "intent": "The module-owned rating aggregate of a target — mean and count over PUBLISHED reviews, avg 0.0 at count 0. It is the same value the reviews.aggregate comm Function returns and the same one every reviews.review.published/hidden fact carries, so a fresh in-process read and the last projection event cannot disagree. Do not average Review rows yourself: visibility is a status SET, and an Avg() that treats \"not hidden\" as the complement publishes a rating no reader can see.",
       "instead_of": [
         "stapel_reviews.models.Review.objects.aggregate"
+      ]
+    },
+    "aggregates_by_keys": {
+      "kind": "factory",
+      "intent": "The batch aggregate: one query for many target keys, answering {key: {avg, count}} with unreviewed keys ABSENT rather than zeroed — \"nobody rated it\" is not \"everyone rated it 0\". Looping aggregate() per row is the N+1 it removes. Exposed as reviews.aggregates_by_keys, the live_query a host Projection reads through.",
+      "instead_of": [
+        "stapel_reviews.models.Review.objects.aggregate"
+      ]
+    },
+    "aggregates_export": {
+      "kind": "factory",
+      "intent": "Every target's aggregate as a keyset-paged snapshot — the source_of_truth stapel-core's rebuild()/drift_check() page through as reviews.aggregates_export. Rows carry a seq on an Event's clock, so a fact arriving mid-rebuild outranks the snapshot row. Paging Review rows yourself re-implements the visibility rule and yields no ordering token.",
+      "instead_of": [
+        "stapel_reviews.models.Review.objects.values"
+      ]
+    },
+    "apply_verdict": {
+      "kind": "gate_function",
+      "intent": "Apply an external moderation module's verdict as the SYSTEM actor: approved publishes, rejected hides, needs_review and dismissed move nothing, an unknown word raises. The one caller allowed past the fail-closed can_moderate gate — authorization already happened where the verdict was made. Idempotent by state: a redelivered verdict writes and emits nothing.",
+      "instead_of": [
+        "stapel_reviews.models.Review.status"
+      ]
+    },
+    "moderation_content": {
+      "kind": "factory",
+      "intent": "A review's content in the shape a moderation module screens and renders a case card from. Reach for it (as the reviews.moderation_content Function) instead of putting review bodies on the bus: content read when it is looked at has not gone stale, and does not sit in a retention-free outbox.",
+      "instead_of": [
+        "stapel_reviews.models.Review.objects.get"
       ]
     },
     "create_review": {

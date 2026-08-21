@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "reviews.aggregates_export",
+  "description": "Cursor-paged snapshot of every target's rating aggregate — the source_of_truth half of a host rating Projection, read by stapel_core.comm.projections rebuild() and drift_check(). Response: {\"rows\": [{\"target_key\", \"target_type\", \"avg\", \"count\", \"seq\"}], \"cursor\": string|null, \"total\": integer|null}. `seq` is the newest updated_at among the target's published reviews in unix milliseconds — the same clock as an Event timestamp, so a live fact arriving mid-rebuild supersedes the snapshot row. `total` is reported on the first page only. Paging is keyset over (target_type, target_key), so the snapshot stays stable under concurrent writes.",
+  "type": "object",
+  "required": [],
+  "properties": {
+    "cursor": {
+      "type": ["string", "null"],
+      "description": "Opaque continuation token from the previous page's `cursor`. Null/absent starts at the beginning."
+    },
+    "limit": {
+      "type": ["integer", "null"],
+      "minimum": 1,
+      "description": "Rows per page. Absent/null means 500; values above 2000 are clamped."
+    }
+  },
+  "additionalProperties": false
+}

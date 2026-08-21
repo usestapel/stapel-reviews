@@ -57,6 +57,13 @@ DEFAULTS = {
     # [RATING_MIN, RATING_MAX] is a 400.
     "RATING_MIN": 1,
     "RATING_MAX": 5,
+    # Which `target_type` on an incoming `moderation.completed` verdict means
+    # "this is about a review". An external moderation module keeps its own
+    # target-type registry; this is the name it registered us under, and the
+    # verdict's `target_key` is then the review id. A tuning knob rather than a
+    # literal in the consumer so a composite that spells the type differently
+    # configures it instead of forking the handler.
+    "MODERATION_TARGET_TYPE": "review",
 }
 
 reviews_settings = AppSettings(

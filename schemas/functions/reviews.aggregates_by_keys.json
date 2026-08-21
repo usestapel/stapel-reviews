@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "reviews.aggregates_by_keys",
+  "description": "Batch form of reviews.aggregate: the module-owned rating aggregate for many targets in one call. This is the live_query half of a host rating Projection — stapel_core.comm.projections.read() calls it with {\"keys\": [...]} in local mode and returns the answer straight to the caller. Response: {target_key: {\"avg\": number, \"count\": integer}}; keys with no published review are absent from the result rather than present with zeros.",
+  "type": "object",
+  "required": ["keys"],
+  "properties": {
+    "keys": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Target keys to look up. An empty array returns {}."
+    },
+    "target_type": {
+      "type": "string",
+      "description": "Optional narrowing. The core Projection primitive sends only `keys`, so this is absent on that path and the counts then span every target type sharing a key — harmless for UUID keys, not for short per-type slugs."
+    }
+  },
+  "additionalProperties": false
+}

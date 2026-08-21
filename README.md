@@ -24,13 +24,13 @@ pip install stapel-reviews
 
 | Fact | Value |
 |---|---|
-| Version | `0.1.9` |
+| Version | `0.2.0` |
 | Python | `>=3.11` (3.11, 3.12, 3.13, 3.14) |
 | HTTP operations | 5 |
 | Config axes | 2 |
-| Usage surface | 11 |
-| Extension points | 5 |
-| Error codes | 50 |
+| Usage surface | 15 |
+| Extension points | 9 |
+| Error codes | 51 |
 | Fleet dependencies | [`stapel-auth`](https://github.com/usestapel/stapel-auth) (optional) · [`stapel-core`](https://github.com/usestapel/stapel-core) |
 
 ## Documentation
@@ -111,6 +111,7 @@ setting, or env var — resolved lazily):
 | `RESPONSES` | `True` | Whether owner responses are allowed by default |
 | `RATING_MIN` | `1` | Inclusive minimum rating |
 | `RATING_MAX` | `5` | Inclusive maximum rating |
+| `MODERATION_TARGET_TYPE` | `"review"` | The `target_type` on an incoming `moderation.completed` verdict that means "this is about a review" |
 
 ## comm surface
 
@@ -119,8 +120,37 @@ setting, or env var — resolved lazily):
 | Emit | `reviews.review.published` | A review became visible — carries `{aggregate: {avg, count}}` for the host projection |
 | Emit | `reviews.review.hidden` | A review left the visible set — carries the updated aggregate |
 | Function | `reviews.aggregate` | `{target_type, target_key}` -> `{avg, count}` |
+| Function | `reviews.aggregates_by_keys` | `{keys, target_type?}` -> `{key: {avg, count}}` — a Projection's `live_query` |
+| Function | `reviews.aggregates_export` | `{cursor?, limit?}` -> `{rows, cursor, total}` — a Projection's `source_of_truth` |
+| Function | `reviews.moderation_content` | `{review_id}` -> `{text, title, language, media, author_id, url, …}` |
+| Consume | `moderation.completed` | `{target_type, target_key, decision, …}` — a platform verdict, applied to the review as the system actor |
 | Callback (host) | policy `can_review` | `{author_id, target_type, target_key}` -> bool — the host answers |
 | Callback (host) | policy `can_moderate` | `{actor_id, target_type, target_key}` -> bool — the host answers |
+
+### Host rating projection
+
+The two batch Functions are the halves a host `Projection` over reviews is
+declared against — one keyed read for live traffic, one snapshot for rebuild:
+
+```python
+class ListingReviewSummaryProjection(Projection):
+    consumes = ("reviews.review.published", "reviews.review.hidden")
+    source_key = "target_key"
+    live_query = "reviews.aggregates_by_keys"      # local mode reads through it
+    source_of_truth = "reviews.aggregates_export"  # rebuild() / drift_check()
+```
+
+### Moderation verdicts
+
+An external moderation module owns the decision; this module owns applying it.
+When a case about a review resolves, `moderation.completed` arrives and the
+review is hidden (`rejected`) or published (`approved`) — `needs_review` and
+`dismissed` deliberately move nothing. The verdict is applied as
+`services.SYSTEM_ACTOR`, the one actor that gets past the fail-closed
+`can_moderate` gate: authorization already happened where the verdict was made,
+and asking a target type with no `can_moderate` callback would deny the
+platform its own decision. Redelivery is a no-op — idempotency is by state, and
+no table of processed event ids is kept.
 
 ## Extension points
 

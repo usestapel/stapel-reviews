@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "moderation.completed",
+  "description": "A moderation case was resolved and its verdict is now a fact. Contract owned by the emitter (the moderation module); this file is stapel-reviews' reader of it. When target_type names this module's registration (STAPEL_REVIEWS.MODERATION_TARGET_TYPE, default \"review\") the target_key is a review id and the verdict is applied to that review's visibility as the system actor. Required here is only what the consumer reads — a consumer that demanded every field the emitter happens to send would break the day the emitter adds one, which is exactly the trap additionalProperties:false set for stapel-listings.",
+  "type": "object",
+  "required": ["target_type", "target_key", "decision"],
+  "properties": {
+    "case_id":     { "type": "string", "format": "uuid" },
+    "target_type": { "type": "string" },
+    "target_key":  { "type": "string" },
+    "decision":    { "type": "string", "enum": ["approved", "rejected", "needs_review", "dismissed"] },
+    "reason_code": { "type": "string" },
+    "note":        { "type": "string" },
+    "source":      { "type": "string" },
+    "decided_at":  { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": true
+}

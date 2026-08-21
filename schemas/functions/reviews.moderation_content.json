@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "reviews.moderation_content",
+  "description": "A review's content, for an external moderation module's screening and moderator card. Identifiers travel on the bus, content is fetched by this call at the moment it is looked at, so a case opened hours ago still shows the review as it is now. A moderation policy names this function as its `content_function` for the review target type. Response: {\"text\", \"title\", \"language\", \"media\", \"author_id\", \"url\", \"rating\", \"status\", \"target_type\", \"target_key\", \"created_at\"} — a review has no title, declared language, media or public per-review URL, so those four come back empty rather than invented. Unguarded by design: who may read a case's content is the moderation module's `can_view_content` policy to answer.",
+  "type": "object",
+  "required": ["review_id"],
+  "properties": {
+    "review_id": {
+      "type": "string",
+      "description": "The review's id — the moderation case's `target_key` for a review target."
+    }
+  },
+  "additionalProperties": false
+}
