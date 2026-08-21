@@ -4,6 +4,23 @@ All notable changes to stapel-reviews are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.2.1] — 2026-08-21
+
+### Changed
+
+- **`services.ReviewNotFound` now subclasses `LookupError`** instead of bare
+  `Exception`. `stapel-moderation`'s integration found the two upstreams of
+  the `*.moderation_content` comm-Function family disagree on how they
+  report "target not found": `stapel-listings` raises `LookupError`,
+  `services.moderation_content` here raised a bare `ReviewNotFound`. A
+  consumer wanting to catch "not found" across both targets could not catch
+  one exception class (stapel-moderation-design.md §23.2). This is the
+  honest fix named there: `ReviewNotFound` now *is* a `LookupError`, so
+  `except LookupError` catches it from either module, while `except
+  ReviewNotFound` still works unchanged for callers that want the specific
+  type. No in-repo `except` site catches `ReviewNotFound` or `LookupError`,
+  so this is a pure MRO widening with no behavior change here.
+
 ## [0.2.0] — 2026-08-21
 
 ### Added — the moderation seam (stapel-moderation upstream, §16.2)

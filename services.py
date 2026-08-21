@@ -91,10 +91,15 @@ class InvalidVerdictDecision(Exception):
     """A moderation verdict carried a decision outside VERDICT_ACTIONS."""
 
 
-class ReviewNotFound(Exception):
+class ReviewNotFound(LookupError):
     """No review exists for the given id (comm-Function callers get this
     instead of ``None`` — a read that silently returns nothing is how a stale
-    moderator card gets built)."""
+    moderator card gets built).
+
+    Subclasses ``LookupError`` so a caller across ``*.moderation_content``
+    targets can catch one exception class regardless of which module raised
+    it — ``stapel-listings`` already raises a bare ``LookupError`` for the
+    same "target not found" case (stapel-moderation-design.md §23.2)."""
 
 
 class InvalidExportCursor(Exception):
