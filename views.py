@@ -5,7 +5,7 @@ Thin views over :mod:`services`. The reviewable target is opaque
 (who may review, who owns the target) is delegated to the type policy's comm
 callbacks in the service layer.
 """
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import permissions, status
 from rest_framework.views import APIView
 from stapel_core.django.api.errors import StapelErrorResponse, StapelResponse
@@ -97,6 +97,41 @@ def _target_params(request):
     )
 
 
+#: Shared (target_type, target_key) query parameters — both GET endpoints
+#: read them via ``_target_params`` (views.py:92-96) and require them (a
+#: missing one is ERR_400_UNKNOWN_TARGET_TYPE, not an empty list/aggregate).
+TARGET_QUERY_PARAMETERS = [
+    OpenApiParameter(
+        "target_type",
+        str,
+        OpenApiParameter.QUERY,
+        required=True,
+        description="Host-registered target-type key (registry.py).",
+    ),
+    OpenApiParameter(
+        "target_key",
+        str,
+        OpenApiParameter.QUERY,
+        required=True,
+        description="Opaque host-owned target identifier.",
+    ),
+]
+
+#: Extra query parameter accepted only by the list endpoint (views.py:118-132).
+INCLUDE_QUERY_PARAMETER = OpenApiParameter(
+    "include",
+    str,
+    OpenApiParameter.QUERY,
+    required=False,
+    description=(
+        "Omit for published-only. `all` additionally asks for pending/hidden "
+        "reviews, but is honored only for a moderator/owner of the target "
+        "(the type's can_moderate callback) — a non-moderator asking for "
+        "`all` is silently narrowed to published, never an error."
+    ),
+)
+
+
 # ── Views ────────────────────────────────────────────────────────────────
 
 
@@ -109,7 +144,10 @@ class ReviewListCreateView(SerializerSeamMixin, APIView):
     request_serializer_class = ReviewCreateRequestSerializer
     response_serializer_class = ReviewResponseSerializer
 
-    @extend_schema(responses={200: ReviewResponseSerializer(many=True)})
+    @extend_schema(
+        parameters=[*TARGET_QUERY_PARAMETERS, INCLUDE_QUERY_PARAMETER],
+        responses={200: ReviewResponseSerializer(many=True)},
+    )
     def get(self, request):  # noqa: R007
         target_type, target_key = _target_params(request)
         if not target_type or not target_key:
@@ -245,7 +283,10 @@ class AggregateView(SerializerSeamMixin, APIView):
     permission_classes = [permissions.IsAuthenticated]
     response_serializer_class = AggregateResponseSerializer
 
-    @extend_schema(responses={200: AggregateResponseSerializer})
+    @extend_schema(
+        parameters=TARGET_QUERY_PARAMETERS,
+        responses={200: AggregateResponseSerializer},
+    )
     def get(self, request):  # noqa: R007
         target_type, target_key = _target_params(request)
         if not target_type or not target_key:

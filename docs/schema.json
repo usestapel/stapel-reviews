@@ -9,6 +9,34 @@
       "get": {
         "operationId": "reviews_api_v1_reviews_list",
         "description": "List a target's reviews (anchor-paginated, published-only for\nnon-moderators), or create a review.\n\n**Permissions:** `IsAuthenticated`",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "include",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Omit for published-only. `all` additionally asks for pending/hidden reviews, but is honored only for a moderator/owner of the target (the type's can_moderate callback) — a non-moderator asking for `all` is silently narrowed to published, never an error."
+          },
+          {
+            "in": "query",
+            "name": "target_key",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Opaque host-owned target identifier.",
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "target_type",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Host-registered target-type key (registry.py).",
+            "required": true
+          }
+        ],
         "tags": [
           "Reviews"
         ],
@@ -195,6 +223,26 @@
       "get": {
         "operationId": "reviews_api_v1_reviews_aggregate_retrieve",
         "description": "The module-owned rating aggregate (avg/count over published reviews)\nfor a target.\n\n**Permissions:** `IsAuthenticated`",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "target_key",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Opaque host-owned target identifier.",
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "target_type",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Host-registered target-type key (registry.py).",
+            "required": true
+          }
+        ],
         "tags": [
           "Reviews"
         ],

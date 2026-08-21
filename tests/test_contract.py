@@ -139,6 +139,34 @@ def test_protected_paths_carry_jwt_security():
     assert not missing, f"operations missing JWTCookieAuth security: {missing}"
 
 
+def test_list_and_aggregate_declare_target_query_params():
+    """`views.py:_target_params` reads target_type/target_key off the query
+    string for both GET endpoints (never declared before A2/0.2.2 — a pure
+    codegen client had no way to pass them, darom-storefront-design.md §1.8).
+    `include` is list-only (views.py:118-132); aggregate has no such param."""
+    schema = json.loads((DOCS / "schema.json").read_text())
+    list_params = {
+        p["name"]: p
+        for p in schema["paths"]["/reviews/api/v1/reviews"]["get"]["parameters"]
+    }
+    assert list_params["target_type"]["in"] == "query"
+    assert list_params["target_type"]["required"] is True
+    assert list_params["target_key"]["in"] == "query"
+    assert list_params["target_key"]["required"] is True
+    assert list_params["include"]["in"] == "query"
+    assert not list_params["include"].get("required")
+
+    aggregate_params = {
+        p["name"]: p
+        for p in schema["paths"]["/reviews/api/v1/reviews/aggregate"]["get"][
+            "parameters"
+        ]
+    }
+    assert aggregate_params["target_type"]["required"] is True
+    assert aggregate_params["target_key"]["required"] is True
+    assert "include" not in aggregate_params
+
+
 # --- capabilities.json content sanity (capability-config.md §2) ---------------
 
 

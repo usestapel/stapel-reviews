@@ -4,6 +4,22 @@ All notable changes to stapel-reviews are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.2.2] — 2026-08-22
+
+### Fixed
+
+- **`docs/schema.json` now declares `target_type`/`target_key` (both
+  required) and `include` as query parameters on `GET /reviews` and
+  `GET /reviews/aggregate`** (`target_type`/`target_key` only — `include` is
+  list-only). These were always read from the query string
+  (`views.py:_target_params`, `views.py:118-132`) but never declared via
+  `extend_schema`, so a pure codegen client (darom-storefront-design.md §1.8,
+  A2) produced a list/aggregate call with no way to pass them — an unusable
+  client. `POST /reviews` (create) was unaffected: its body fields already
+  came from `ReviewCreateRequestSerializer`/`ReviewCreateRequest`, which
+  always carried `target_type`/`target_key`. No runtime behavior change —
+  view code is untouched; only the emitted contract gained the parameters.
+
 ## [0.2.1] — 2026-08-21
 
 ### Changed
