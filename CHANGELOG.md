@@ -4,6 +4,57 @@ All notable changes to stapel-reviews are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.3.0] — 2026-08-22
+
+### Changed
+
+- **`GET /reviews` and `GET /reviews/aggregate` are now anonymously
+  readable** (storefront F5 verdict, darom-storefront-design.md §13.8 note
+  2): both views were gated on bare `IsAuthenticated`, so a guest on a
+  public listing page got a 401 on the review list and the aggregate alike
+  — indistinguishable from "this seller has no reviews," which is exactly
+  the state a not-yet-registered visitor should never be shown. Both
+  endpoints only ever return published reviews to a non-moderator, so
+  nothing becomes visible to a guest that a moderator would need withheld.
+  `ReviewListCreateView` (list + create in one class) now gates on DRF's
+  `IsAuthenticatedOrReadOnly` — mirrors `stapel-listings`' `ListingViewSet`,
+  the fleet's other single-class read-open/write-authenticated view — so
+  `POST` (create) is unaffected and still needs a real identity.
+  `AggregateView` (GET-only) now gates on `AllowAny`, mirroring
+  `stapel-search`'s public endpoints. Both declare
+  `stapel_anonymous_access = ANONYMOUS_ALLOWED` per the core adoption
+  check's canon (silence reads as unintended, not "guests are fine here").
+  `POST .../moderate` and `POST .../response` are untouched and still
+  `IsAuthenticated`-only. Both anonymous reads are now throttled from the
+  module's own settings namespace (`STAPEL_REVIEWS["LIST_THROTTLE"]`
+  default `120/min`, `STAPEL_REVIEWS["AGGREGATE_THROTTLE"]` default
+  `300/min`) — a library does not own the project's
+  `DEFAULT_THROTTLE_RATES`, matching `stapel-search`'s
+  `QUERY_THROTTLE`/`SUGGEST_THROTTLE` convention. **Minor bump because this
+  is a permission-surface change**, even though it only widens what a
+  guest may read.
+
+### Fixed
+
+- **`docs/schema.json` now declares `GET /reviews`'s real response
+  envelope and its anchor-pagination query params.** The endpoint has
+  always returned `AnchorPagination`'s envelope
+  (`{items, next_anchor, prev_anchor, has_next, has_prev, count}`,
+  `views.py:176-180`) and always read `anchor`/`limit`/`direction` off the
+  query string (`ReviewAnchorPagination`), but the schema declared a bare
+  `ReviewResponse[]` and said nothing about the three pagination params —
+  `ReviewListCreateView` is a bare `APIView`, so drf-spectacular's paginator
+  introspection (which only fires for `GenericAPIView.pagination_class`)
+  never ran (darom-storefront-design.md §13.8 note 3). A generated client
+  had no declared way to page past the first window, and its response type
+  was simply wrong. Fixed by hand-declaring both: a new
+  `ReviewPageSerializer` (serializers.py) for the envelope and
+  `ANCHOR_QUERY_PARAMETERS` (views.py) for `anchor`/`limit`/`direction`,
+  the same pattern `TARGET_QUERY_PARAMETERS`/`INCLUDE_QUERY_PARAMETER`
+  already used for `target_type`/`target_key`/`include` (0.2.2). No
+  runtime behavior change — view and pagination code are untouched; only
+  the emitted contract now matches what the endpoint has always done.
+
 ## [0.2.2] — 2026-08-22
 
 ### Fixed

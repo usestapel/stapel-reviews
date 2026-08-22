@@ -20,3 +20,5 @@ default below. `MODERATION_DEFAULT` and `RESPONSES` are CTO-facing config axes
 | RESPONSES | env | axis: whether a target owner may attach a single Response to a review. A type policy may override. | no | true |
 | RATING_MIN | env | inclusive minimum rating (out-of-range is a 400). | no | 1 |
 | RATING_MAX | env | inclusive maximum rating (out-of-range is a 400). | no | 5 |
+| LIST_THROTTLE | env | rate limit for `GET /reviews` (anonymously readable — storefront F5). DRF rate string. | no | 120/min |
+| AGGREGATE_THROTTLE | env | rate limit for `GET /reviews/aggregate` (anonymously readable — storefront F5). DRF rate string. | no | 300/min |

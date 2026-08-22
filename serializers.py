@@ -3,6 +3,8 @@
 Every view exposes request/response serializer seams (SerializerSeamMixin);
 these are the defaults.
 """
+from rest_framework import serializers
+
 from stapel_core.django.api.serializers import StapelDataclassSerializer
 
 from .dto import (
@@ -43,3 +45,22 @@ class ModerateRequestSerializer(StapelDataclassSerializer):
 class RespondRequestSerializer(StapelDataclassSerializer):
     class Meta:
         dataclass = RespondRequest
+
+
+class ReviewPageSerializer(serializers.Serializer):
+    """The envelope ``GET /reviews`` actually returns — ``AnchorPagination``'s
+    keys (``stapel_core.django.api.pagination.AnchorPagination.
+    get_paginated_response``/``get_paginated_response_schema``) wrapping
+    ``items``. Schema-only: ``ReviewListCreateView`` is a bare ``APIView``
+    (views.py), so drf-spectacular's pagination auto-introspection — which
+    only fires for ``GenericAPIView.pagination_class`` — never sees
+    ``ReviewAnchorPagination``, and the envelope has to be declared by hand
+    or spectacular renders the response as a bare array
+    (darom-storefront-design.md §13.8 note 3)."""
+
+    items = ReviewResponseSerializer(many=True)
+    next_anchor = serializers.CharField(allow_null=True)
+    prev_anchor = serializers.CharField(allow_null=True)
+    has_next = serializers.BooleanField()
+    has_prev = serializers.BooleanField()
+    count = serializers.IntegerField()

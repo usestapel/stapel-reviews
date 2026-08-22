@@ -7,9 +7,30 @@
   "paths": {
     "/reviews/api/v1/reviews": {
       "get": {
-        "operationId": "reviews_api_v1_reviews_list",
-        "description": "List a target's reviews (anchor-paginated, published-only for\nnon-moderators), or create a review.\n\n**Permissions:** `IsAuthenticated`",
+        "operationId": "reviews_api_v1_reviews_retrieve",
+        "description": "List a target's reviews (anchor-paginated, published-only for\nnon-moderators), or create a review.\n\n``GET`` is anonymously readable (storefront F5 verdict,\ndarom-storefront-design.md §13.8 note 2) — published-only filtering\nalready guarantees a guest sees nothing a moderator would need to hide.\n``POST`` still requires a real identity (there is an author to attribute\nthe review to), so the class gate is DRF's own\n``IsAuthenticatedOrReadOnly`` (mirrors ``ListingViewSet`` in\nstapel-listings — the fleet's other read-open/write-authenticated view in\na single class) rather than a per-method override.\n\n**Permissions:** `IsAuthenticatedOrReadOnly`",
         "parameters": [
+          {
+            "in": "query",
+            "name": "anchor",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Opaque cursor: a `next_anchor`/`prev_anchor` from a previous page (the review's `created_at`). Omit for the first page."
+          },
+          {
+            "in": "query",
+            "name": "direction",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "center",
+                "next",
+                "prev"
+              ]
+            },
+            "description": "Which side of `anchor` to page toward. Default `next`."
+          },
           {
             "in": "query",
             "name": "include",
@@ -17,6 +38,14 @@
               "type": "string"
             },
             "description": "Omit for published-only. `all` additionally asks for pending/hidden reviews, but is honored only for a moderator/owner of the target (the type's can_moderate callback) — a non-moderator asking for `all` is silently narrowed to published, never an error."
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Page size, default 20, max 100."
           },
           {
             "in": "query",
@@ -43,17 +72,15 @@
         "security": [
           {
             "JWTCookieAuth": []
-          }
+          },
+          {}
         ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ReviewResponse"
-                  }
+                  "$ref": "#/components/schemas/ReviewPage"
                 }
               }
             },
@@ -63,7 +90,7 @@
       },
       "post": {
         "operationId": "reviews_api_v1_reviews_create",
-        "description": "List a target's reviews (anchor-paginated, published-only for\nnon-moderators), or create a review.\n\n**Permissions:** `IsAuthenticated`",
+        "description": "List a target's reviews (anchor-paginated, published-only for\nnon-moderators), or create a review.\n\n``GET`` is anonymously readable (storefront F5 verdict,\ndarom-storefront-design.md §13.8 note 2) — published-only filtering\nalready guarantees a guest sees nothing a moderator would need to hide.\n``POST`` still requires a real identity (there is an author to attribute\nthe review to), so the class gate is DRF's own\n``IsAuthenticatedOrReadOnly`` (mirrors ``ListingViewSet`` in\nstapel-listings — the fleet's other read-open/write-authenticated view in\na single class) rather than a per-method override.\n\n**Permissions:** `IsAuthenticatedOrReadOnly`",
         "tags": [
           "Reviews"
         ],
@@ -222,7 +249,7 @@
     "/reviews/api/v1/reviews/aggregate": {
       "get": {
         "operationId": "reviews_api_v1_reviews_aggregate_retrieve",
-        "description": "The module-owned rating aggregate (avg/count over published reviews)\nfor a target.\n\n**Permissions:** `IsAuthenticated`",
+        "description": "The module-owned rating aggregate (avg/count over published reviews)\nfor a target.\n\nAnonymously readable for the same reason as the list's ``GET``\n(storefront F5 verdict, darom-storefront-design.md §13.8 note 2): the\naggregate is computed over published reviews only, so a guest learns\nnothing a moderator would need withheld.\n\n**Permissions:** `AllowAny`",
         "parameters": [
           {
             "in": "query",
@@ -249,7 +276,8 @@
         "security": [
           {
             "JWTCookieAuth": []
-          }
+          },
+          {}
         ],
         "responses": {
           "200": {
@@ -373,6 +401,43 @@
           "rating",
           "target_key",
           "target_type"
+        ]
+      },
+      "ReviewPage": {
+        "type": "object",
+        "description": "The envelope ``GET /reviews`` actually returns — ``AnchorPagination``'s\nkeys (``stapel_core.django.api.pagination.AnchorPagination.\nget_paginated_response``/``get_paginated_response_schema``) wrapping\n``items``. Schema-only: ``ReviewListCreateView`` is a bare ``APIView``\n(views.py), so drf-spectacular's pagination auto-introspection — which\nonly fires for ``GenericAPIView.pagination_class`` — never sees\n``ReviewAnchorPagination``, and the envelope has to be declared by hand\nor spectacular renders the response as a bare array\n(darom-storefront-design.md §13.8 note 3).",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewResponse"
+            }
+          },
+          "next_anchor": {
+            "type": "string",
+            "nullable": true
+          },
+          "prev_anchor": {
+            "type": "string",
+            "nullable": true
+          },
+          "has_next": {
+            "type": "boolean"
+          },
+          "has_prev": {
+            "type": "boolean"
+          },
+          "count": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "count",
+          "has_next",
+          "has_prev",
+          "items",
+          "next_anchor",
+          "prev_anchor"
         ]
       },
       "ReviewResponse": {

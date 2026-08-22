@@ -167,6 +167,83 @@ def test_list_and_aggregate_declare_target_query_params():
     assert "include" not in aggregate_params
 
 
+def test_list_declares_anchor_pagination_params():
+    """`ReviewAnchorPagination`'s own params (views.py:38-45) — undeclared
+    before darom-storefront-design.md §13.8 note 3 because a bare `APIView`
+    never runs drf-spectacular's paginator introspection. All three are
+    optional: their absence means "first page, default size, forward"."""
+    schema = json.loads((DOCS / "schema.json").read_text())
+    list_params = {
+        p["name"]: p
+        for p in schema["paths"]["/reviews/api/v1/reviews"]["get"]["parameters"]
+    }
+    for name in ("anchor", "limit", "direction"):
+        assert name in list_params, f"{name} missing from GET /reviews parameters"
+        assert not list_params[name].get("required")
+    assert set(list_params["direction"]["schema"]["enum"]) == {"next", "prev", "center"}
+    # The aggregate endpoint has no pagination — it is a single object.
+    aggregate_params = {
+        p["name"]: p
+        for p in schema["paths"]["/reviews/api/v1/reviews/aggregate"]["get"][
+            "parameters"
+        ]
+    }
+    for name in ("anchor", "limit", "direction"):
+        assert name not in aggregate_params
+
+
+def test_list_declares_the_anchor_pagination_envelope():
+    """`GET /reviews` returns `AnchorPagination`'s envelope
+    (`{items, next_anchor, prev_anchor, has_next, has_prev, count}`), not a
+    bare array — the drift `ReviewListCreateView` used to declare
+    (darom-storefront-design.md §13.8 note 3, fixed by `ReviewPageSerializer`
+    in serializers.py)."""
+    schema = json.loads((DOCS / "schema.json").read_text())
+    op = schema["paths"]["/reviews/api/v1/reviews"]["get"]
+    response_schema = op["responses"]["200"]["content"]["application/json"]["schema"]
+    assert "$ref" in response_schema, (
+        "GET /reviews 200 response is not a $ref to a named component — "
+        "looks like it regressed to a bare array"
+    )
+    ref_name = response_schema["$ref"].rsplit("/", 1)[-1]
+    envelope = schema["components"]["schemas"][ref_name]
+    assert envelope["type"] == "object"
+    assert set(envelope["properties"]) == {
+        "items",
+        "next_anchor",
+        "prev_anchor",
+        "has_next",
+        "has_prev",
+        "count",
+    }
+    items_schema = envelope["properties"]["items"]
+    assert items_schema["type"] == "array"
+
+
+def test_anonymous_reads_carry_optional_security():
+    """`GET /reviews` and `GET /reviews/aggregate` are `AllowAny` (storefront
+    F5 verdict) — drf-spectacular renders that as an extra `{}` alternative
+    alongside `JWTCookieAuth` (mirrors stapel-search's public endpoints), so
+    an anonymous caller is a documented option, not just an accident of
+    testing against the browsable API. Writes keep JWTCookieAuth as the only
+    option."""
+    schema = json.loads((DOCS / "schema.json").read_text())
+    for path in ("/reviews/api/v1/reviews", "/reviews/api/v1/reviews/aggregate"):
+        security = schema["paths"][path]["get"]["security"]
+        assert {"JWTCookieAuth": []} in security
+        assert {} in security, f"GET {path} lost its anonymous-access alternative"
+    write_ops = [
+        ("/reviews/api/v1/reviews", "post"),
+        ("/reviews/api/v1/reviews/{review_id}/moderate", "post"),
+        ("/reviews/api/v1/reviews/{review_id}/response", "post"),
+    ]
+    for path, method in write_ops:
+        security = schema["paths"][path][method]["security"]
+        assert security == [{"JWTCookieAuth": []}], (
+            f"{method.upper()} {path} must stay authenticated-only"
+        )
+
+
 # --- capabilities.json content sanity (capability-config.md §2) ---------------
 
 

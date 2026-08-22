@@ -7,9 +7,11 @@ callbacks in the service layer.
 """
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import permissions, status
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 from stapel_core.django.api.errors import StapelErrorResponse, StapelResponse
 from stapel_core.django.api.pagination import AnchorPagination
+from stapel_core.django.api.permissions import ANONYMOUS_ALLOWED
 
 from . import services
 from .dto import AggregateResponse, ResponseResponse, ReviewResponse
@@ -31,6 +33,7 @@ from .serializers import (
     ModerateRequestSerializer,
     RespondRequestSerializer,
     ReviewCreateRequestSerializer,
+    ReviewPageSerializer,
     ReviewResponseSerializer,
 )
 
@@ -43,6 +46,27 @@ class ReviewAnchorPagination(AnchorPagination):
     max_page_size = 100
     anchor_field = "created_at"
     ordering = "-created_at"
+
+
+class _SettingsRateThrottle(ScopedRateThrottle):
+    """Scoped throttle whose rate comes from ``STAPEL_REVIEWS``, not the
+    project (mirrors stapel-search's ``_SettingsRateThrottle``): a library
+    does not own the project's ``DEFAULT_THROTTLE_RATES``."""
+
+    settings_key = ""
+
+    def get_rate(self):
+        from .conf import reviews_settings
+
+        return getattr(reviews_settings, self.settings_key)
+
+
+class ListThrottle(_SettingsRateThrottle):
+    settings_key = "LIST_THROTTLE"
+
+
+class AggregateThrottle(_SettingsRateThrottle):
+    settings_key = "AGGREGATE_THROTTLE"
 
 
 class SerializerSeamMixin:
@@ -131,6 +155,43 @@ INCLUDE_QUERY_PARAMETER = OpenApiParameter(
     ),
 )
 
+#: ``ReviewAnchorPagination``'s own query params (views.py:38-45), declared by
+#: hand for the same reason ``ReviewPageSerializer`` declares the envelope by
+#: hand: ``ReviewListCreateView`` is a bare ``APIView``, so drf-spectacular's
+#: paginator introspection (which reads ``GenericAPIView.pagination_class``)
+#: never runs, and these three params would otherwise be invisible to a
+#: generated client (darom-storefront-design.md §13.8 note 3).
+ANCHOR_QUERY_PARAMETERS = [
+    OpenApiParameter(
+        "anchor",
+        str,
+        OpenApiParameter.QUERY,
+        required=False,
+        description=(
+            "Opaque cursor: a `next_anchor`/`prev_anchor` from a previous "
+            "page (the review's `created_at`). Omit for the first page."
+        ),
+    ),
+    OpenApiParameter(
+        "limit",
+        int,
+        OpenApiParameter.QUERY,
+        required=False,
+        description=(
+            f"Page size, default {ReviewAnchorPagination.page_size}, max "
+            f"{ReviewAnchorPagination.max_page_size}."
+        ),
+    ),
+    OpenApiParameter(
+        "direction",
+        str,
+        OpenApiParameter.QUERY,
+        required=False,
+        enum=["next", "prev", "center"],
+        description="Which side of `anchor` to page toward. Default `next`.",
+    ),
+]
+
 
 # ── Views ────────────────────────────────────────────────────────────────
 
@@ -138,15 +199,32 @@ INCLUDE_QUERY_PARAMETER = OpenApiParameter(
 @extend_schema(tags=["Reviews"])
 class ReviewListCreateView(SerializerSeamMixin, APIView):
     """List a target's reviews (anchor-paginated, published-only for
-    non-moderators), or create a review."""
+    non-moderators), or create a review.
 
-    permission_classes = [permissions.IsAuthenticated]
+    ``GET`` is anonymously readable (storefront F5 verdict,
+    darom-storefront-design.md §13.8 note 2) — published-only filtering
+    already guarantees a guest sees nothing a moderator would need to hide.
+    ``POST`` still requires a real identity (there is an author to attribute
+    the review to), so the class gate is DRF's own
+    ``IsAuthenticatedOrReadOnly`` (mirrors ``ListingViewSet`` in
+    stapel-listings — the fleet's other read-open/write-authenticated view in
+    a single class) rather than a per-method override.
+    """
+
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    stapel_anonymous_access = ANONYMOUS_ALLOWED
+    throttle_classes = [ListThrottle]
+    throttle_scope = "reviews-list"
     request_serializer_class = ReviewCreateRequestSerializer
     response_serializer_class = ReviewResponseSerializer
 
     @extend_schema(
-        parameters=[*TARGET_QUERY_PARAMETERS, INCLUDE_QUERY_PARAMETER],
-        responses={200: ReviewResponseSerializer(many=True)},
+        parameters=[
+            *TARGET_QUERY_PARAMETERS,
+            INCLUDE_QUERY_PARAMETER,
+            *ANCHOR_QUERY_PARAMETERS,
+        ],
+        responses={200: ReviewPageSerializer},
     )
     def get(self, request):  # noqa: R007
         target_type, target_key = _target_params(request)
@@ -278,9 +356,18 @@ class ReviewRespondView(SerializerSeamMixin, APIView):
 @extend_schema(tags=["Reviews"])
 class AggregateView(SerializerSeamMixin, APIView):
     """The module-owned rating aggregate (avg/count over published reviews)
-    for a target."""
+    for a target.
 
-    permission_classes = [permissions.IsAuthenticated]
+    Anonymously readable for the same reason as the list's ``GET``
+    (storefront F5 verdict, darom-storefront-design.md §13.8 note 2): the
+    aggregate is computed over published reviews only, so a guest learns
+    nothing a moderator would need withheld.
+    """
+
+    permission_classes = [permissions.AllowAny]
+    stapel_anonymous_access = ANONYMOUS_ALLOWED
+    throttle_classes = [AggregateThrottle]
+    throttle_scope = "reviews-aggregate"
     response_serializer_class = AggregateResponseSerializer
 
     @extend_schema(

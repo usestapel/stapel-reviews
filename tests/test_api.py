@@ -72,6 +72,60 @@ class TestCreateAndList:
 
 
 @pytest.mark.django_db
+class TestAnonymousReads:
+    """Storefront F5 verdict (darom-storefront-design.md §13.8 note 2): GET
+    /reviews and GET /reviews/aggregate are anonymously readable —
+    published-only filtering already guarantees a guest sees nothing a
+    moderator would need withheld. Writes (create/moderate/respond) stay
+    authenticated, and an anonymous `include=all` is silently narrowed to
+    published rather than leaking pending/hidden reviews."""
+
+    def test_anon_list_200(self, settings, api_client, user):
+        settings.STAPEL_REVIEWS = {"TARGET_TYPES": {"seller": {}}}
+        services.create_review(target_type="seller", target_key="s1", author=user, rating=5)
+        resp = api_client.get(
+            "/reviews/api/v1/reviews", {"target_type": "seller", "target_key": "s1"}
+        )
+        assert resp.status_code == 200
+        assert resp.data["count"] == 1
+
+    def test_anon_list_include_all_stays_published_only(self, settings, api_client, user):
+        settings.STAPEL_REVIEWS = {
+            "TARGET_TYPES": {"seller": {"moderation": "pre", "can_moderate": "fake.deny"}}
+        }
+        from stapel_core.comm import register_function
+
+        register_function("fake.deny", lambda p: False)
+        services.create_review(target_type="seller", target_key="s1", author=user, rating=1)
+        resp = api_client.get(
+            "/reviews/api/v1/reviews",
+            {"target_type": "seller", "target_key": "s1", "include": "all"},
+        )
+        assert resp.status_code == 200
+        assert resp.data["count"] == 0
+
+    def test_anon_aggregate_200(self, settings, api_client, user):
+        settings.STAPEL_REVIEWS = {"TARGET_TYPES": {"seller": {}}}
+        services.create_review(target_type="seller", target_key="s1", author=user, rating=4)
+        resp = api_client.get(
+            "/reviews/api/v1/reviews/aggregate",
+            {"target_type": "seller", "target_key": "s1"},
+        )
+        assert resp.status_code == 200
+        assert resp.data["count"] == 1
+        assert resp.data["avg"] == 4.0
+
+    def test_anon_create_still_requires_auth(self, settings, api_client):
+        settings.STAPEL_REVIEWS = {"TARGET_TYPES": {"seller": {}}}
+        resp = api_client.post(
+            "/reviews/api/v1/reviews",
+            {"target_type": "seller", "target_key": "s1", "rating": 5, "body": "great"},
+            format="json",
+        )
+        assert resp.status_code in (401, 403)
+
+
+@pytest.mark.django_db
 class TestAnchorWindows:
     def _seed(self, settings, user, n=5):
         settings.STAPEL_REVIEWS = {"TARGET_TYPES": {"seller": {}}}
@@ -222,9 +276,28 @@ class TestModerateAndRespondEndpoints:
         )
         assert resp.status_code == 400
 
-    def test_requires_auth(self, settings, api_client):
+    def test_respond_requires_auth(self, settings, api_client, user):
+        """Responding (attaching an owner reply) still needs a real identity
+        — only the two GETs became anonymous (storefront F5 verdict)."""
         settings.STAPEL_REVIEWS = {"TARGET_TYPES": {"seller": {}}}
-        resp = api_client.get(
-            "/reviews/api/v1/reviews", {"target_type": "seller", "target_key": "s1"}
+        review = services.create_review(
+            target_type="seller", target_key="s1", author=user, rating=5
+        )
+        resp = api_client.post(
+            f"/reviews/api/v1/reviews/{review.id}/response",
+            {"body": "no"},
+            format="json",
+        )
+        assert resp.status_code in (401, 403)
+
+    def test_moderate_requires_auth(self, settings, api_client, user):
+        settings.STAPEL_REVIEWS = {"TARGET_TYPES": {"seller": {}}}
+        review = services.create_review(
+            target_type="seller", target_key="s1", author=user, rating=5
+        )
+        resp = api_client.post(
+            f"/reviews/api/v1/reviews/{review.id}/moderate",
+            {"action": "hide"},
+            format="json",
         )
         assert resp.status_code in (401, 403)

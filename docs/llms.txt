@@ -1,4 +1,4 @@
-# stapel-reviews 0.2.2
+# stapel-reviews 0.3.0
 
 Target-generic reviews and ratings: an author rates and reviews an opaque host-defined target (target_type + target_key), driven by a per-target-type policy registry (who may review, pre/post moderation, one-review-per-author, owner responses) whose authority questions are answered by host comm callbacks. The module owns the per-target aggregate (avg/count over published reviews) and emits a generic visibility-change fact carrying it, so a host catalog maintains its own rating projection without calling back.
 
@@ -90,9 +90,9 @@ Paths are relative to `/reviews/api/v1/`.
 ### Reviews
 - GET /reviews/aggregate — reviews_api_v1_reviews_aggregate_retrieve
 - POST /reviews — reviews_api_v1_reviews_create
-- GET /reviews — reviews_api_v1_reviews_list
 - POST /reviews/{review_id}/moderate — reviews_api_v1_reviews_moderate_create
 - POST /reviews/{review_id}/response — reviews_api_v1_reviews_response_create
+- GET /reviews — reviews_api_v1_reviews_retrieve
 
 ## Error codes (51) — the StapelError envelope
 Render `t(code, params)`; branch UX on the remediation. Localized text lives in docs/errors.<lang>.md, not here.
