@@ -64,7 +64,7 @@ DEFAULTS = {
     # literal in the consumer so a composite that spells the type differently
     # configures it instead of forking the handler.
     "MODERATION_TARGET_TYPE": "review",
-    # Anon-read throttle scopes (storefront F5, darom-storefront-design.md
+    # Anon-read throttle scopes (storefront F5, the storefront spec
     # §13.8 note 2): GET /reviews and GET /reviews/aggregate are AllowAny, so
     # both carry a rate bounded from this module's OWN settings namespace —
     # a library does not own the project's DEFAULT_THROTTLE_RATES (mirrors

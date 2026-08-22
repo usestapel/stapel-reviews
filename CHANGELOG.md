@@ -4,12 +4,16 @@ All notable changes to stapel-reviews are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.3.1] — 2026-08-22
+
+Docs only: endpoint descriptions no longer reference an internal spec by name; no runtime change.
+
 ## [0.3.0] — 2026-08-22
 
 ### Changed
 
 - **`GET /reviews` and `GET /reviews/aggregate` are now anonymously
-  readable** (storefront F5 verdict, darom-storefront-design.md §13.8 note
+  readable** (storefront F5 verdict, the storefront spec §13.8 note
   2): both views were gated on bare `IsAuthenticated`, so a guest on a
   public listing page got a 401 on the review list and the aggregate alike
   — indistinguishable from "this seller has no reviews," which is exactly
@@ -45,7 +49,7 @@ Pre-1.0 semver: **minor = breaking**, patch = compatible.
   `ReviewResponse[]` and said nothing about the three pagination params —
   `ReviewListCreateView` is a bare `APIView`, so drf-spectacular's paginator
   introspection (which only fires for `GenericAPIView.pagination_class`)
-  never ran (darom-storefront-design.md §13.8 note 3). A generated client
+  never ran (the storefront spec §13.8 note 3). A generated client
   had no declared way to page past the first window, and its response type
   was simply wrong. Fixed by hand-declaring both: a new
   `ReviewPageSerializer` (serializers.py) for the envelope and
@@ -64,7 +68,7 @@ Pre-1.0 semver: **minor = breaking**, patch = compatible.
   `GET /reviews/aggregate`** (`target_type`/`target_key` only — `include` is
   list-only). These were always read from the query string
   (`views.py:_target_params`, `views.py:118-132`) but never declared via
-  `extend_schema`, so a pure codegen client (darom-storefront-design.md §1.8,
+  `extend_schema`, so a pure codegen client (the storefront spec §1.8,
   A2) produced a list/aggregate call with no way to pass them — an unusable
   client. `POST /reviews` (create) was unaffected: its body fields already
   came from `ReviewCreateRequestSerializer`/`ReviewCreateRequest`, which

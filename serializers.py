@@ -56,7 +56,7 @@ class ReviewPageSerializer(serializers.Serializer):
     only fires for ``GenericAPIView.pagination_class`` — never sees
     ``ReviewAnchorPagination``, and the envelope has to be declared by hand
     or spectacular renders the response as a bare array
-    (darom-storefront-design.md §13.8 note 3)."""
+    (the storefront spec §13.8 note 3)."""
 
     items = ReviewResponseSerializer(many=True)
     next_anchor = serializers.CharField(allow_null=True)

@@ -142,7 +142,7 @@ def test_protected_paths_carry_jwt_security():
 def test_list_and_aggregate_declare_target_query_params():
     """`views.py:_target_params` reads target_type/target_key off the query
     string for both GET endpoints (never declared before A2/0.2.2 — a pure
-    codegen client had no way to pass them, darom-storefront-design.md §1.8).
+    codegen client had no way to pass them, the storefront spec §1.8).
     `include` is list-only (views.py:118-132); aggregate has no such param."""
     schema = json.loads((DOCS / "schema.json").read_text())
     list_params = {
@@ -169,7 +169,7 @@ def test_list_and_aggregate_declare_target_query_params():
 
 def test_list_declares_anchor_pagination_params():
     """`ReviewAnchorPagination`'s own params (views.py:38-45) — undeclared
-    before darom-storefront-design.md §13.8 note 3 because a bare `APIView`
+    before the storefront spec §13.8 note 3 because a bare `APIView`
     never runs drf-spectacular's paginator introspection. All three are
     optional: their absence means "first page, default size, forward"."""
     schema = json.loads((DOCS / "schema.json").read_text())
@@ -196,7 +196,7 @@ def test_list_declares_the_anchor_pagination_envelope():
     """`GET /reviews` returns `AnchorPagination`'s envelope
     (`{items, next_anchor, prev_anchor, has_next, has_prev, count}`), not a
     bare array — the drift `ReviewListCreateView` used to declare
-    (darom-storefront-design.md §13.8 note 3, fixed by `ReviewPageSerializer`
+    (the storefront spec §13.8 note 3, fixed by `ReviewPageSerializer`
     in serializers.py)."""
     schema = json.loads((DOCS / "schema.json").read_text())
     op = schema["paths"]["/reviews/api/v1/reviews"]["get"]

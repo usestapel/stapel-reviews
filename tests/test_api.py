@@ -73,7 +73,7 @@ class TestCreateAndList:
 
 @pytest.mark.django_db
 class TestAnonymousReads:
-    """Storefront F5 verdict (darom-storefront-design.md §13.8 note 2): GET
+    """Storefront F5 verdict (the storefront spec §13.8 note 2): GET
     /reviews and GET /reviews/aggregate are anonymously readable —
     published-only filtering already guarantees a guest sees nothing a
     moderator would need withheld. Writes (create/moderate/respond) stay

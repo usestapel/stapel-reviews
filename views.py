@@ -160,7 +160,7 @@ INCLUDE_QUERY_PARAMETER = OpenApiParameter(
 #: hand: ``ReviewListCreateView`` is a bare ``APIView``, so drf-spectacular's
 #: paginator introspection (which reads ``GenericAPIView.pagination_class``)
 #: never runs, and these three params would otherwise be invisible to a
-#: generated client (darom-storefront-design.md §13.8 note 3).
+#: generated client (the storefront spec §13.8 note 3).
 ANCHOR_QUERY_PARAMETERS = [
     OpenApiParameter(
         "anchor",
@@ -202,7 +202,7 @@ class ReviewListCreateView(SerializerSeamMixin, APIView):
     non-moderators), or create a review.
 
     ``GET`` is anonymously readable (storefront F5 verdict,
-    darom-storefront-design.md §13.8 note 2) — published-only filtering
+    the storefront spec §13.8 note 2) — published-only filtering
     already guarantees a guest sees nothing a moderator would need to hide.
     ``POST`` still requires a real identity (there is an author to attribute
     the review to), so the class gate is DRF's own
@@ -359,7 +359,7 @@ class AggregateView(SerializerSeamMixin, APIView):
     for a target.
 
     Anonymously readable for the same reason as the list's ``GET``
-    (storefront F5 verdict, darom-storefront-design.md §13.8 note 2): the
+    (storefront F5 verdict, the storefront spec §13.8 note 2): the
     aggregate is computed over published reviews only, so a guest learns
     nothing a moderator would need withheld.
     """
