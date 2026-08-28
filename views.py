@@ -11,7 +11,7 @@ from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 from stapel_core.django.api.errors import StapelErrorResponse, StapelResponse
 from stapel_core.django.api.pagination import AnchorPagination
-from stapel_core.django.api.permissions import ANONYMOUS_ALLOWED
+from stapel_core.django.api.permissions import ANONYMOUS_ALLOWED, IsNotAnonymousUser
 
 from . import services
 from .dto import AggregateResponse, ResponseResponse, ReviewResponse
@@ -21,6 +21,7 @@ from .errors import (
     ERR_400_INVALID_RATING,
     ERR_400_RESPONSE_NOT_ALLOWED,
     ERR_400_UNKNOWN_TARGET_TYPE,
+    ERR_403_ANONYMOUS_NOT_ALLOWED,
     ERR_403_CANNOT_MODERATE,
     ERR_403_CANNOT_REVIEW,
     ERR_404_REVIEW_NOT_FOUND,
@@ -85,6 +86,34 @@ class SerializerSeamMixin:
 
     def get_response_serializer_class(self):
         return self.response_serializer_class
+
+
+# ── The guest wall ───────────────────────────────────────────────────────
+
+
+def anonymous_write_refusal(request):
+    """The 403 a GUEST gets on a review write, or ``None`` to let it through.
+
+    A storefront may mint an anonymous account silently (press the heart as a
+    stranger, get a real ``User`` row with ``is_anonymous=True`` and a valid
+    session). That session is authenticated, so ``IsAuthenticated`` waves it
+    through and the "sign up to review" wall is decoration unless this module
+    asks the question itself. ``ALLOW_ANONYMOUS_WRITES`` is where the answer
+    lives, and it is closed by default (see ``conf.py``).
+
+    The predicate is core's :class:`IsNotAnonymousUser` — the module owns the
+    switch and the error key, never a second copy of the rule. A *response* is
+    returned rather than an exception raised because the refusal has to read
+    as this module's error dialect, and only ``StapelErrorResponse`` does that
+    under DRF's stock exception handler as well as under the host's.
+    """
+    from .conf import reviews_settings
+
+    if reviews_settings.ALLOW_ANONYMOUS_WRITES:
+        return None
+    if IsNotAnonymousUser().has_permission(request, None):
+        return None
+    return StapelErrorResponse(403, ERR_403_ANONYMOUS_NOT_ALLOWED)
 
 
 # ── Mappers ──────────────────────────────────────────────────────────────
@@ -209,6 +238,13 @@ class ReviewListCreateView(SerializerSeamMixin, APIView):
     ``IsAuthenticatedOrReadOnly`` (mirrors ``ListingViewSet`` in
     stapel-listings — the fleet's other read-open/write-authenticated view in
     a single class) rather than a per-method override.
+
+    ``IsAuthenticatedOrReadOnly`` admits a GUEST, though — an anonymous
+    account is authenticated — so ``POST`` additionally passes
+    :func:`anonymous_write_refusal`, the ``ALLOW_ANONYMOUS_WRITES`` switch.
+    Per-method rather than a class permission for the same reason the class
+    gate is what it is: the refusal is aimed at the write, and ``GET`` must
+    stay open to exactly the caller it refuses.
     """
 
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
@@ -262,6 +298,9 @@ class ReviewListCreateView(SerializerSeamMixin, APIView):
         responses={201: ReviewResponseSerializer},
     )
     def post(self, request):  # noqa: R007
+        refusal = anonymous_write_refusal(request)
+        if refusal is not None:
+            return refusal
         ser = self.get_request_serializer_class()(data=request.data)
         ser.is_valid(raise_exception=True)
         data = ser.validated_data

@@ -1,8 +1,8 @@
-# stapel-reviews 0.3.1
+# stapel-reviews 0.4.0
 
 Target-generic reviews and ratings: an author rates and reviews an opaque host-defined target (target_type + target_key), driven by a per-target-type policy registry (who may review, pre/post moderation, one-review-per-author, owner responses) whose authority questions are answered by host comm callbacks. The module owns the per-target aggregate (avg/count over published reviews) and emits a generic visibility-change fact carrying it, so a host catalog maintains its own rating projection without calling back.
 
-Contract: axes 2 · surface 15 · extension points 9 · operations 5 · error codes 51.
+Contract: axes 2 · surface 15 · extension points 9 · operations 5 · error codes 52.
 Generated from docs/capabilities.json by `stapel-llms-txt` — do not edit; drift-gated by `make contract-check`.
 
 ## Configuration axes — what a product switches on
@@ -94,7 +94,7 @@ Paths are relative to `/reviews/api/v1/`.
 - POST /reviews/{review_id}/response — reviews_api_v1_reviews_response_create
 - GET /reviews — reviews_api_v1_reviews_retrieve
 
-## Error codes (51) — the StapelError envelope
+## Error codes (52) — the StapelError envelope
 Render `t(code, params)`; branch UX on the remediation. Localized text lives in docs/errors.<lang>.md, not here.
 - error.400.bad_request [400] fix_input
 - error.400.captcha_invalid [400] retry
@@ -124,6 +124,7 @@ Render `t(code, params)`; branch UX on the remediation. Localized text lives in 
 - error.402.payment_required [402] retry
 - error.403.forbidden [403] retry
 - error.403.network_blocked [403] contact_support
+- error.403.reviews_anonymous_not_allowed [403] retry
 - error.403.reviews_cannot_moderate [403] retry
 - error.403.reviews_cannot_review [403] retry
 - error.403.verification_enrollment_required [403] verify

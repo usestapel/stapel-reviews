@@ -71,6 +71,22 @@ DEFAULTS = {
     # stapel-search's QUERY_THROTTLE/SUGGEST_THROTTLE).
     "LIST_THROTTLE": "120/min",
     "AGGREGATE_THROTTLE": "300/min",
+    # May a GUEST — an anonymous account (``User.is_anonymous``), the kind a
+    # storefront mints silently so a stranger can save a favourite — leave a
+    # review? Such a session is genuinely authenticated, so IsAuthenticated
+    # cannot tell it from a registered one and the module has to be asked.
+    #
+    # CLOSED by default, and the default is the cheap answer either way: a
+    # deployment that mints no anonymous users has none to reject, so it costs
+    # them nothing; a deployment that does mint them gets the wall it already
+    # believed it had. Flipping this to True is the explicit statement "guests
+    # may review here" — a review from an account nobody can trace is worth
+    # little as social proof, so it should be said out loud.
+    #
+    # Gates the review WRITE only (POST /reviews). Reading reviews and the
+    # aggregate stays anonymous in both positions — a guest browsing is the
+    # point of the anonymous session.
+    "ALLOW_ANONYMOUS_WRITES": False,
 }
 
 reviews_settings = AppSettings(

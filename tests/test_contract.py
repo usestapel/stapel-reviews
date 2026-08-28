@@ -42,6 +42,13 @@ TRIAD = ("schema.json", "flows.json", "errors.json")
 # The fifth artifact (badge-canon §3): docs/llms.txt, rendered from
 # docs/capabilities.json (+schema/errors/flows) by stapel_tools.llms_txt.
 ARTIFACTS = TRIAD + ("capabilities.json", "llms.txt")
+# Raised from the generator's 4000 default (and kept identical in the Makefile,
+# which is the only other caller) when ALLOW_ANONYMOUS_WRITES brought an
+# eleventh error key and put the file 8 tokens over. Deliberate, per the
+# fleet's other ceilings (stapel-auth 8000, stapel-calendar 5000): the 15-entry
+# surface section is what an agent reads to avoid rewriting a mechanism that
+# already exists, so it is not the thing to shorten for eight tokens.
+LLMS_TXT_BUDGET = "4500"
 
 
 def _emit(out_dir: Path) -> None:
@@ -56,7 +63,10 @@ def _emit(out_dir: Path) -> None:
     # the just-regenerated tmp one) — same as `make contract-check` — so this
     # step also catches a stale llms.txt independently of the loop above.
     subprocess.run(
-        [sys.executable, "-m", "stapel_tools.llms_txt", ".", "--out", str(out_dir)],
+        [
+            sys.executable, "-m", "stapel_tools.llms_txt", ".",
+            "--out", str(out_dir), "--budget", LLMS_TXT_BUDGET,
+        ],
         cwd=str(REPO),
         check=True,
         capture_output=True,

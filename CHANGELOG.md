@@ -4,6 +4,24 @@ All notable changes to stapel-reviews are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.4.0] — 2026-08-28
+
+### `ALLOW_ANONYMOUS_WRITES` — the wall was in the interface only
+
+A silently minted guest could `POST /reviews` and get **201, published**. The
+refusal a visitor saw lived in the frontend and nowhere else, so the axis was
+UI-only: the server had no opinion.
+
+It has one now, and it is **closed by default**. A deployment that wants
+anonymous reviews says so; one that does not gets the refusal on the server
+where it belongs.
+
+Whether a review from an account minted seconds ago is worth anything is a
+product question, and the default answers it conservatively: a review is
+social proof, and social proof from an ephemeral identity is an abuse surface
+rather than a feature. Favouriting and messaging a seller are the acts
+auto-anonymous exists to allow; leaving a review is not one of them.
+
 ## [0.3.1] — 2026-08-22
 
 Docs only: endpoint descriptions no longer reference an internal spec by name; no runtime change.

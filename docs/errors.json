@@ -250,6 +250,14 @@
     "owner": "stapel_core"
   },
   {
+    "code": "error.403.reviews_anonymous_not_allowed",
+    "status": 403,
+    "params": [],
+    "remediation": "retry",
+    "en": "A guest account may not leave a review",
+    "owner": "stapel_reviews"
+  },
+  {
     "code": "error.403.reviews_cannot_moderate",
     "status": 403,
     "params": [],
