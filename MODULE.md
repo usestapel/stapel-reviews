@@ -142,6 +142,29 @@ those four come back empty rather than invented. Schemas:
 `schemas/consumes/moderation.completed.json`,
 `schemas/functions/reviews.moderation_content.json`.
 
+### 7. Account life cycle — `user.deleted` + `user.merged` (consume)
+
+Both halves are answered in `actions.py`, and core 0.52.x makes answering only
+one of them a system-check ERROR (`stapel_core.lifecycle.E001`).
+
+| Event | What this module does |
+|---|---|
+| `user.deleted` | Erase the account's authored reviews (cascading to their responses) and its responses on other people's reviews — `gdpr.ReviewsGDPRProvider` |
+| `user.merged` | Re-parent `Review.author` and `Response.author` from `from_user_id` to `into_user_id`, in one transaction |
+
+Merge policy, in full: both columns are `on_delete=CASCADE`, so a guest's
+review is not orphaned by the guest row's deletion — it is destroyed. Where a
+target type sets `one_per_author` and **both** accounts reviewed the same
+`(target_type, target_key)`, the **survivor's review wins** and the guest's
+duplicate is dropped (its `Response` goes with it); if that duplicate was
+published, `reviews.review.hidden` is emitted with `reason:
+"merged_duplicate"` and the recomputed aggregate, so a host's `avg_rating`
+projection shrinks with it. A type without the policy — or one the host has
+de-registered — keeps both rows. A guest with rows to carry and a survivor
+this deployment has not projected yet raises `actions.MergeTargetNotReady`, so
+the outbox redelivers rather than marking the transfer done. Schema:
+`schemas/consumes/user.merged.json`.
+
 ### Settings — `STAPEL_REVIEWS` namespace (`conf.py`)
 
 | Key | Default | Meaning |

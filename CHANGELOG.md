@@ -4,6 +4,49 @@ All notable changes to stapel-reviews are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.5.0] — 2026-08-30
+
+### `user.merged` — a review left as a guest survives signing in
+
+`Review.author` and `Response.author` are both `on_delete=CASCADE`. When
+stapel-auth folds an anonymous guest into an existing account on sign-in it
+DELETES the guest row, so a rating left before signing in was not merely
+orphaned — it was **destroyed**, and the seller's aggregate silently lost a
+rating nobody asked to remove. This module now consumes `user.merged` and
+re-parents both columns to the surviving account, in one transaction, before
+that deletion can cascade.
+
+stapel-core 0.52.1 turns the omission into a system-check ERROR
+(`stapel_core.lifecycle.E001`): an app that subscribes `user.deleted` and not
+`user.merged` has a silent, wrong answer for the second event, and the failure
+has no symptom at the seam — nothing raises, nothing retries, and the first
+report is a person saying their review is gone.
+
+**The one-per-author collision.** `one_per_author` is a per-target-type
+policy, not a database constraint, so a blind reassignment cannot raise — it
+can only leave a state `create_review` would have refused: two reviews by one
+author on one target. Where the policy is on and both accounts reviewed the
+same target, **the survivor's review wins** — it carries the account's own
+history — and the guest's duplicate is dropped, taking its `Response` with it.
+A dropped review that was *published* leaves the visible set, so it emits
+`reviews.review.hidden` with `reason: "merged_duplicate"` and the recomputed
+aggregate: a host projecting `avg_rating` must not be left counting a row this
+module deleted. A target type whose policy is off, or one the host has since
+de-registered, keeps both rows — that is what "no constraint" means, and
+deleting a person's review needs a rule that says so.
+
+**Ordering.** A guest with rows to carry and a survivor this deployment has
+not projected yet raises `actions.MergeTargetNotReady` instead of returning
+success, so the outbox redelivers and the transfer lands once the survivor's
+user projection arrives. A guest that owns nothing is the quiet no-op — which
+is also the at-least-once idempotency path, so a redelivery moves nothing
+further and emits nothing. Malformed ids are logged and dropped: `"not-a-uuid"`
+raises `ValidationError` (which is *not* a `ValueError`) from a UUID filter,
+and an escaping exception is a poison pill no redelivery can fix.
+
+Schema: `schemas/consumes/user.merged.json`. Tests: `tests/test_user_merged.py`.
+No migration, no API change.
+
 ## [0.4.0] — 2026-08-28
 
 ### `ALLOW_ANONYMOUS_WRITES` — the wall was in the interface only

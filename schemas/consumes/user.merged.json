@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "user.merged",
+  "description": "Consumed from stapel-auth. An anonymous guest account was absorbed into an existing account; the guest row ceases to exist. Reviews reassigns the guest's authored reviews and responses to the surviving account, so a rating left before signing in is neither orphaned nor cascaded away. Where a target type sets one_per_author and both accounts reviewed the same target, the survivor's review wins and the guest's duplicate is dropped — emitting reviews.review.hidden if it was published, so a host's avg_rating projection shrinks with it. Contract owned by the emitter.",
+  "type": "object",
+  "required": ["from_user_id", "into_user_id"],
+  "properties": {
+    "from_user_id": { "type": "string" },
+    "into_user_id": { "type": "string" },
+    "reason": { "type": "string" }
+  },
+  "additionalProperties": true
+}
