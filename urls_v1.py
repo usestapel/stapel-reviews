@@ -11,6 +11,7 @@ from django.urls import path
 
 from .views import (
     AggregateView,
+    OwnerAggregatesView,
     ReviewListCreateView,
     ReviewModerateView,
     ReviewRespondView,
@@ -19,6 +20,11 @@ from .views import (
 urlpatterns = [
     path("reviews", ReviewListCreateView.as_view(), name="reviews-list-create"),
     path("reviews/aggregate", AggregateView.as_view(), name="reviews-aggregate"),
+    path(
+        "aggregates/by-owner/",
+        OwnerAggregatesView.as_view(),
+        name="reviews-aggregates-by-owner",
+    ),
     path(
         "reviews/<uuid:review_id>/moderate",
         ReviewModerateView.as_view(),

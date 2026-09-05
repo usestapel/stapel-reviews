@@ -4,6 +4,43 @@ All notable changes to stapel-reviews are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.6.0] — 2026-09-05
+
+### A seller-wide rating, out of a module that still knows nothing about sellers
+
+Reviews target an opaque `(target_type, target_key)`, so the aggregate has
+always been per-target: what is *this listing* rated. A marketplace also needs
+what *the seller* is rated, across everything they own, and the module must not
+learn what a listing is to answer it. So a target type may now declare one more
+optional resolver — `owner_key_for` in its `STAPEL_REVIEWS["TARGET_TYPES"]`
+policy, either a callable `owner_key_for(target_key) -> str | None` or a comm
+Function name — which is asked **once, when the review is written**, and whose
+answer is denormalised onto the new `Review.owner_key` column. Reads then go
+through `reviews.aggregates_by_owner_keys` (batch: owner keys in,
+`{owner_key: {avg, count}}` over published reviews out, same rounding as
+`reviews.aggregate`, unreviewed owners absent) or its public HTTP twin
+`POST /reviews/api/v1/aggregates/by-owner/` (up to 100 owner keys per request).
+A host that registers no resolver stamps nothing, gets an empty owner
+aggregate, and sees no other change.
+
+**Empty is not an owner.** Reviews with no owner key — every review of a type
+that registers no resolver, and every row written before one was registered —
+are excluded from the owner aggregate rather than pooled under `""`. That makes
+the backfill mandatory rather than cosmetic after registering a resolver:
+`python manage.py reviews_backfill_owner_keys [--target-type T] [--batch-size N]
+[--limit N] [--dry-run]` walks the rows whose owner key is still empty, resolves
+once per *distinct* target, pages by keyset and reports counts. It is idempotent
+by construction (a second run has no candidates) and, unlike the write path,
+counts a resolver that cannot answer instead of aborting the walk — on the write
+path a failing resolver raises, because a silently unstamped review is a seller
+rating quietly missing reviews.
+
+Migration `0002_review_owner_key` (expand-only: a blank-defaulted indexed
+column plus a `(owner_key, status)` index). New error key
+`error.400.reviews_too_many_owner_keys`. Schema:
+`schemas/functions/reviews.aggregates_by_owner_keys.json`. Tests:
+`tests/test_owner_keys.py`.
+
 ## [0.5.0] — 2026-08-30
 
 ### `user.merged` — a review left as a guest survives signing in

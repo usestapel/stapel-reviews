@@ -43,12 +43,13 @@ TRIAD = ("schema.json", "flows.json", "errors.json")
 # docs/capabilities.json (+schema/errors/flows) by stapel_tools.llms_txt.
 ARTIFACTS = TRIAD + ("capabilities.json", "llms.txt")
 # Raised from the generator's 4000 default (and kept identical in the Makefile,
-# which is the only other caller) when ALLOW_ANONYMOUS_WRITES brought an
-# eleventh error key and put the file 8 tokens over. Deliberate, per the
-# fleet's other ceilings (stapel-auth 8000, stapel-calendar 5000): the 15-entry
-# surface section is what an agent reads to avoid rewriting a mechanism that
-# already exists, so it is not the thing to shorten for eight tokens.
-LLMS_TXT_BUDGET = "4500"
+# which is the only other caller): 4500 when ALLOW_ANONYMOUS_WRITES brought an
+# eleventh error key, 5000 when the owner-key mechanism added three surface
+# entries and two extension points. Deliberate, per the fleet's other ceilings
+# (stapel-auth 8000, stapel-calendar 5000): the surface section is what an
+# agent reads to avoid rewriting a mechanism that already exists, so it is not
+# the thing to shorten for a handful of tokens.
+LLMS_TXT_BUDGET = "5000"
 
 
 def _emit(out_dir: Path) -> None:
@@ -327,3 +328,32 @@ def test_readme_version_matches_the_package():
 
     pyproject = tomllib.loads((REPO / "pyproject.toml").read_text())
     assert resolve_version(load_inputs(REPO)) == pyproject["project"]["version"]
+
+
+def test_owner_aggregates_endpoint_is_declared_public_and_keyed_by_owner():
+    """The owner-wide rating surface (`POST .../aggregates/by-owner/`).
+
+    Three things a generated client cannot guess and a host cannot see from
+    the code: that the endpoint exists at all, that it is readable
+    anonymously like the other two aggregate reads, and that its 200 is a MAP
+    keyed by owner key rather than a fixed object — the same shape the
+    `reviews.aggregates_by_owner_keys` comm Function returns."""
+    schema = json.loads((DOCS / "schema.json").read_text())
+    path = "/reviews/api/v1/aggregates/by-owner/"
+    assert path in schema["paths"], "the owner aggregate endpoint is not in the contract"
+    op = schema["paths"][path]["post"]
+
+    security = op["security"]
+    assert {"JWTCookieAuth": []} in security
+    assert {} in security, "the owner aggregate lost its anonymous-access alternative"
+
+    request_ref = op["requestBody"]["content"]["application/json"]["schema"]["$ref"]
+    request = schema["components"]["schemas"][request_ref.rsplit("/", 1)[-1]]
+    assert set(request["properties"]) == {"owner_keys", "target_type"}
+    assert request["required"] == ["owner_keys"]
+
+    body = op["responses"]["200"]["content"]["application/json"]["schema"]
+    assert body["type"] == "object"
+    entry = body["additionalProperties"]
+    assert set(entry["properties"]) == {"avg", "count"}
+    assert sorted(entry["required"]) == ["avg", "count"]

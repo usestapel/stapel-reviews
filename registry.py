@@ -11,6 +11,7 @@ A *policy* is a plain dict per type:
     {
         "can_review":     "comm.function.name" | None,   # author eligibility
         "can_moderate":   "comm.function.name" | None,   # moderate + respond
+        "owner_key_for":  callable | "comm.function.name" | None,  # owner of a target
         "moderation":     "pre" | "post",                # else MODERATION_DEFAULT
         "one_per_author": bool,                          # default False
         "allow_response": bool,                          # else RESPONSES
@@ -23,6 +24,13 @@ host's to answer, off an opaque ``(target_type, target_key)`` handle. A policy
 with ``can_review=None`` means "anyone authenticated may review"; a policy with
 ``can_moderate=None`` means "no one may moderate or respond via the API"
 (fail-closed — an unset moderator gate never silently opens).
+
+``owner_key_for`` is the third, optional host answer: "who OWNS this target?".
+It is asked once, when the review is written, and its answer is denormalised
+onto ``Review.owner_key`` so the module can aggregate a whole owner's ratings
+(``reviews.aggregates_by_owner_keys``) while still knowing nothing about what a
+listing, a shop or a driver is. A type that registers no resolver stamps
+nothing and behaves exactly as before.
 """
 from __future__ import annotations
 
@@ -68,8 +76,8 @@ def resolve_policy(target_type: str) -> dict:
     defaults filled in), or raise :class:`UnknownTargetType`.
 
     Every key the services rely on is guaranteed present on the returned dict:
-    ``can_review``, ``can_moderate``, ``moderation``, ``one_per_author``,
-    ``allow_response``.
+    ``can_review``, ``can_moderate``, ``owner_key_for``, ``moderation``,
+    ``one_per_author``, ``allow_response``.
     """
     from .conf import reviews_settings
 
@@ -80,6 +88,7 @@ def resolve_policy(target_type: str) -> dict:
     return {
         "can_review": raw.get("can_review"),
         "can_moderate": raw.get("can_moderate"),
+        "owner_key_for": raw.get("owner_key_for"),
         "moderation": raw.get("moderation", reviews_settings.MODERATION_DEFAULT),
         "one_per_author": bool(raw.get("one_per_author", False)),
         "allow_response": bool(raw.get("allow_response", reviews_settings.RESPONSES)),
@@ -115,6 +124,47 @@ def check_can_review(policy: dict, *, author_id, target_type: str, target_key: s
             },
         )
     )
+
+
+def resolve_owner_key(policy: dict, *, target_type: str, target_key: str) -> str:
+    """Ask the type's ``owner_key_for`` resolver who owns this target.
+
+    Returns the host's opaque owner key, or ``""`` when the type registers no
+    resolver — which is the default, and the state in which this whole
+    mechanism is invisible: nothing is stamped, and the owner aggregate finds
+    nothing.
+
+    Two forms, mirroring how the rest of a policy is written:
+
+    - a **callable** ``owner_key_for(target_key) -> str | None`` — the direct
+      form for a host that composes ``TARGET_TYPES`` in Python;
+    - a **comm Function name** ``"catalog.owner_of_listing"`` — the data form,
+      for a policy that has to stay JSON-shaped, called with
+      ``{"target_type", "target_key"}`` and answering either a bare string or
+      an envelope ``{"owner_key": str|None}`` (the two shapes ``can_review``'s
+      boolean already has).
+
+    ``None`` is a legitimate answer meaning "this target has no owner" and
+    becomes ``""``. A resolver that RAISES is not swallowed: an owner key that
+    silently fails to be stamped produces a seller rating that is quietly
+    missing reviews, which is the expensive kind of wrong. The backfill command
+    is the deliberate exception (it counts and continues), because one broken
+    target must not abort a walk over a whole table.
+    """
+    resolver = policy.get("owner_key_for")
+    if not resolver:
+        return ""
+    if callable(resolver):
+        owner = resolver(target_key)
+    else:
+        from stapel_core.comm import call
+
+        owner = call(
+            str(resolver), {"target_type": target_type, "target_key": target_key}
+        )
+        if isinstance(owner, dict):
+            owner = owner.get("owner_key")
+    return "" if owner is None else str(owner)
 
 
 def check_can_moderate(policy: dict, *, actor_id, target_type: str, target_key: str) -> bool:

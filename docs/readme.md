@@ -28,11 +28,15 @@ path("reviews/", include("stapel_reviews.urls"))
 - **Policy** — per target type: who may review (`can_review` comm callback),
   pre/post moderation, one-review-per-author, whether owner responses are
   allowed (`allow_response`), who may moderate/respond (`can_moderate` comm
-  callback).
+  callback), and — optionally — who *owns* a target (`owner_key_for`).
 - **Aggregate** — the module owns `avg`/`count` over *published* reviews per
   target, and emits a generic fact carrying it on every visibility change, so a
   host catalog maintains its own rating **projection** (§10) without calling
   back.
+- **Owner key** — optional, denormalised: the answer of the type's
+  `owner_key_for` resolver, stamped on the review when it is written, so the
+  module can also aggregate *everything one owner owns* (a seller-wide rating)
+  while still knowing nothing about what a listing or a seller is.
 
 ```python
 STAPEL_REVIEWS = {
@@ -44,7 +48,13 @@ STAPEL_REVIEWS = {
             "one_per_author": True,
             "allow_response": True,
         },
-        "listing": {"moderation": "pre"},
+        "listing": {
+            "moderation": "pre",
+            # Optional: who owns this target. A callable, or a comm Function
+            # name for a policy that has to stay JSON-shaped. Registering none
+            # leaves owner_key empty and changes nothing else.
+            "owner_key_for": lambda target_key: seller_id_of(target_key),
+        },
     },
 }
 ```
@@ -58,6 +68,9 @@ review = services.create_review(
 services.moderate_review(review, actor=owner, action="hide", reason="spam")
 services.respond(review, author=owner, body="thanks for the feedback")
 agg = services.aggregate("seller", "s-42")   # Aggregate(avg=..., count=...)
+
+# Everything one owner owns, batched (the seller-wide rating):
+services.aggregates_by_owner_keys(["s-42", "s-43"])  # {"s-42": {"avg": .., "count": ..}}
 ```
 
 ## Settings
@@ -82,11 +95,13 @@ setting, or env var — resolved lazily):
 | Emit | `reviews.review.hidden` | A review left the visible set — carries the updated aggregate |
 | Function | `reviews.aggregate` | `{target_type, target_key}` -> `{avg, count}` |
 | Function | `reviews.aggregates_by_keys` | `{keys, target_type?}` -> `{key: {avg, count}}` — a Projection's `live_query` |
+| Function | `reviews.aggregates_by_owner_keys` | `{owner_keys, target_type?}` -> `{owner_key: {avg, count}}` — the owner-wide rating |
 | Function | `reviews.aggregates_export` | `{cursor?, limit?}` -> `{rows, cursor, total}` — a Projection's `source_of_truth` |
 | Function | `reviews.moderation_content` | `{review_id}` -> `{text, title, language, media, author_id, url, …}` |
 | Consume | `moderation.completed` | `{target_type, target_key, decision, …}` — a platform verdict, applied to the review as the system actor |
 | Callback (host) | policy `can_review` | `{author_id, target_type, target_key}` -> bool — the host answers |
 | Callback (host) | policy `can_moderate` | `{actor_id, target_type, target_key}` -> bool — the host answers |
+| Callback (host) | policy `owner_key_for` | `target_key` -> `str \| None` (callable), or a comm Function `{target_type, target_key}` -> owner key — optional |
 
 ### Host rating projection
 
@@ -100,6 +115,35 @@ class ListingReviewSummaryProjection(Projection):
     live_query = "reviews.aggregates_by_keys"      # local mode reads through it
     source_of_truth = "reviews.aggregates_export"  # rebuild() / drift_check()
 ```
+
+### Owner-wide ratings
+
+A marketplace needs the rating of a **seller**, not only of each listing — and
+the module must not learn what a listing is to produce it. The seam is one
+optional resolver and one denormalised column:
+
+```python
+STAPEL_REVIEWS = {
+    "TARGET_TYPES": {
+        "listing": {"owner_key_for": "catalog.owner_of_listing"},  # or a callable
+    },
+}
+```
+
+The resolver is asked once, when the review is written, and its answer is
+stored on `Review.owner_key`. Reads go through
+`reviews.aggregates_by_owner_keys` or `POST /reviews/api/v1/aggregates/by-owner/`
+(public, up to 100 owner keys per call), which return `{owner_key: {avg,
+count}}` over published reviews with the same rounding as `reviews.aggregate`.
+Reviews written before the resolver was registered carry an empty owner key —
+stamp them once with:
+
+```bash
+python manage.py reviews_backfill_owner_keys [--target-type listing] [--dry-run]
+```
+
+A host that registers no resolver stamps nothing, and the owner aggregate
+simply answers `{}`.
 
 ### Moderation verdicts
 

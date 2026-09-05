@@ -20,6 +20,7 @@ from .errors import (
     ERR_400_INVALID_MODERATION_ACTION,
     ERR_400_INVALID_RATING,
     ERR_400_RESPONSE_NOT_ALLOWED,
+    ERR_400_TOO_MANY_OWNER_KEYS,
     ERR_400_UNKNOWN_TARGET_TYPE,
     ERR_403_ANONYMOUS_NOT_ALLOWED,
     ERR_403_CANNOT_MODERATE,
@@ -32,10 +33,12 @@ from .registry import UnknownTargetType, resolve_policy, check_can_moderate
 from .serializers import (
     AggregateResponseSerializer,
     ModerateRequestSerializer,
+    OwnerAggregatesRequestSerializer,
     RespondRequestSerializer,
     ReviewCreateRequestSerializer,
     ReviewPageSerializer,
     ReviewResponseSerializer,
+    OWNER_AGGREGATES_RESPONSE_SCHEMA,
 )
 
 
@@ -427,5 +430,54 @@ class AggregateView(SerializerSeamMixin, APIView):
                     avg=agg.avg,
                     count=agg.count,
                 )
+            )
+        )
+
+
+@extend_schema(tags=["Reviews"])
+class OwnerAggregatesView(SerializerSeamMixin, APIView):
+    """The rating of an owner — avg and count over published reviews of
+    everything that owner owns — for up to 100 owners in one call.
+
+    Answers `{owner_key: {avg, count}}`; an owner nobody has published a review
+    about is absent from the map rather than present with zeros. Optional
+    `target_type` narrows the count to one kind of target.
+
+    A POST because the owner keys are opaque host strings of unbounded length,
+    and a page showing twenty sellers wants one request. It reads and never
+    writes, so it sits in the same public, throttled position as
+    `GET /reviews/aggregate` — published reviews only, so an anonymous caller
+    learns nothing a moderator would need withheld.
+
+    The ownership link is the review's owner key, stamped when the review is
+    written by the target type's optional `owner_key_for` resolver. A
+    deployment that registers none gets an empty map, which is the honest
+    answer: the module was never told who owns anything.
+    """
+
+    permission_classes = [permissions.AllowAny]
+    stapel_anonymous_access = ANONYMOUS_ALLOWED
+    throttle_classes = [AggregateThrottle]
+    throttle_scope = "reviews-aggregate"
+    request_serializer_class = OwnerAggregatesRequestSerializer
+
+    @extend_schema(
+        request=OwnerAggregatesRequestSerializer,
+        responses={200: OWNER_AGGREGATES_RESPONSE_SCHEMA},
+    )
+    def post(self, request):  # noqa: R007
+        ser = self.get_request_serializer_class()(data=request.data)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+        owner_keys = list(data.owner_keys or [])
+        if len(owner_keys) > services.OWNER_KEYS_MAX:
+            return StapelErrorResponse(
+                400,
+                ERR_400_TOO_MANY_OWNER_KEYS,
+                {"max": services.OWNER_KEYS_MAX},
+            )
+        return StapelResponse(
+            services.aggregates_by_owner_keys(
+                owner_keys, target_type=data.target_type or ""
             )
         )

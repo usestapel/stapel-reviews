@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "reviews.aggregates_by_owner_keys",
+  "description": "The rating aggregate over everything an OWNER owns, batched: many owner keys in, {owner_key: {\"avg\": number, \"count\": integer}} out. reviews.aggregates_by_keys answers \"what is this listing rated\"; this answers \"what is this seller rated\", over every target the host said they own — the module never learns what a listing or a seller is. The link is Review.owner_key, denormalised at write time by the target type's optional owner_key_for resolver (STAPEL_REVIEWS[\"TARGET_TYPES\"][<type>][\"owner_key_for\"]). Published reviews only, same rounding as reviews.aggregate; owner keys with no published review are absent from the result rather than present with zeros, and reviews carrying no owner key (the default, when a type registers no resolver) are excluded rather than pooled under an empty key.",
+  "type": "object",
+  "required": ["owner_keys"],
+  "properties": {
+    "owner_keys": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Opaque host-owned owner keys to look up. An empty array (or one of only empty strings) returns {}."
+    },
+    "target_type": {
+      "type": "string",
+      "description": "Optional narrowing to one target type, for an owner whose rating should count some of what they own and not the rest. Omitted, the answer spans every target type stamped with that owner key."
+    }
+  },
+  "additionalProperties": false
+}

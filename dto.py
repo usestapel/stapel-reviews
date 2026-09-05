@@ -84,6 +84,19 @@ class ReviewCreateRequest:
 
 
 @dataclass
+class OwnerAggregatesRequest:
+    """Batch-read the rating aggregate of many owners.
+
+    Attributes:
+        owner_keys: Opaque host-owned owner keys (at most 100 per request).
+        target_type: Optional narrowing to a single target type.
+    """
+
+    owner_keys: list[str]
+    target_type: str = ""
+
+
+@dataclass
 class ModerateRequest:
     """Moderate a review.
 

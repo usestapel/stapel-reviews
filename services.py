@@ -29,8 +29,10 @@ from stapel_core.comm import emit
 
 from .models import Review, ReviewStatus, VISIBLE_STATUSES, Response
 from .registry import (
+    UnknownTargetType,
     check_can_moderate,
     check_can_review,
+    resolve_owner_key,
     resolve_policy,
 )
 
@@ -62,6 +64,15 @@ VERDICT_ACTIONS: dict[str, Optional[str]] = {
 #: whole table in one response).
 EXPORT_DEFAULT_LIMIT = 500
 EXPORT_MAX_LIMIT = 2000
+
+#: How many owner keys one batch owner-aggregate request may name. The comm
+#: Function is in-process and trusted; the HTTP endpoint is public, so the
+#: ceiling is enforced there (views.OwnerAggregatesView) off this constant.
+OWNER_KEYS_MAX = 100
+
+#: Default number of distinct targets one backfill page resolves before it
+#: writes and moves the keyset cursor.
+BACKFILL_BATCH_SIZE = 500
 
 
 # ── Service-layer exceptions (views map these to error keys) ───────────────
@@ -207,6 +218,149 @@ def aggregates_by_keys(
         }
         for row in rows
     }
+
+
+def aggregates_by_owner_keys(
+    owner_keys: Iterable[str], *, target_type: str = ""
+) -> dict[str, dict]:
+    """Aggregate over everything an OWNER owns: ``{owner_key: {avg, count}}``.
+
+    :func:`aggregates_by_keys` answers "what is this listing rated";  this one
+    answers "what is this seller rated", over every target the host said they
+    own — without the module ever learning what a listing or a seller is. The
+    ownership link is :attr:`Review.owner_key`, stamped at write time by the
+    type policy's ``owner_key_for`` resolver (``registry.resolve_owner_key``).
+
+    Same arithmetic and same rounding as :func:`aggregate` (mean over PUBLISHED
+    reviews, three decimals), so a per-target and a per-owner number never
+    disagree about what a rating is, and an owner key nobody has a published
+    review for is **absent** rather than zeroed — the convention the keyed
+    read already states.
+
+    Reviews with an empty ``owner_key`` (every review of a type that registers
+    no resolver, and every row written before the backfill ran) are excluded
+    rather than pooled under ``""``: "the owner is unknown" is not an owner.
+    ``target_type`` narrows the same way as in the keyed read, for an owner
+    whose ratings should count listings but not, say, their support chats.
+    """
+    key_list = [str(k) for k in owner_keys if str(k)]
+    if not key_list:
+        return {}
+    qs = Review.objects.filter(
+        owner_key__in=key_list, status__in=VISIBLE_STATUSES
+    ).exclude(owner_key="")
+    if target_type:
+        qs = qs.filter(target_type=target_type)
+    rows = qs.values("owner_key").annotate(avg=Avg("rating"), count=Count("id"))
+    return {
+        row["owner_key"]: {
+            "avg": round(row["avg"], 3) if row["avg"] is not None else 0.0,
+            "count": row["count"],
+        }
+        for row in rows
+    }
+
+
+def backfill_owner_keys(
+    *,
+    target_type: str = "",
+    batch_size: int = BACKFILL_BATCH_SIZE,
+    limit: Optional[int] = None,
+    dry_run: bool = False,
+) -> dict:
+    """Stamp ``owner_key`` on reviews written before the resolver existed.
+
+    The write path fills ``owner_key`` from the moment a type registers an
+    ``owner_key_for`` resolver; every review older than that registration
+    carries an empty one, and an owner aggregate that silently omits a seller's
+    first hundred reviews is worse than no owner aggregate. This is the pass
+    over those rows, exposed as ``manage.py reviews_backfill_owner_keys``.
+
+    **Idempotent by construction**: the candidate set is exactly the rows whose
+    ``owner_key`` is still empty, so a second full run is a no-op and a run
+    resumed after a crash picks up precisely what the crash left. It resolves
+    once per DISTINCT ``(target_type, target_key)`` — a target with forty
+    reviews costs one host call — and pages the distinct targets by keyset
+    rather than by offset, which is what keeps a resolved-and-therefore-no-
+    longer-candidate target from shifting the window under the walk.
+
+    Unlike the write path, a resolver that raises here is caught, counted as
+    ``unresolved`` and stepped over: one unanswerable target must not abort a
+    walk over a whole table. A target whose type is no longer registered, or
+    whose type registers no resolver, is counted the same way. Rerun after
+    fixing the resolver — the rows are still candidates.
+
+    Returns ``{"targets", "stamped_targets", "stamped_rows", "unresolved",
+    "no_resolver"}``; with ``dry_run`` the rows are counted and nothing is
+    written.
+    """
+    base = Review.objects.filter(owner_key="")
+    if target_type:
+        base = base.filter(target_type=target_type)
+
+    stats = {
+        "targets": 0,
+        "stamped_targets": 0,
+        "stamped_rows": 0,
+        "unresolved": 0,
+        "no_resolver": 0,
+    }
+    batch_size = max(1, int(batch_size or BACKFILL_BATCH_SIZE))
+    last: Optional[tuple[str, str]] = None
+
+    while True:
+        page_qs = base
+        if last is not None:
+            page_qs = page_qs.filter(
+                Q(target_type__gt=last[0])
+                | Q(target_type=last[0], target_key__gt=last[1])
+            )
+        page = list(
+            page_qs.values_list("target_type", "target_key")
+            .distinct()
+            .order_by("target_type", "target_key")[:batch_size]
+        )
+        if not page:
+            break
+
+        for ttype, tkey in page:
+            stats["targets"] += 1
+            owner = ""
+            try:
+                policy = resolve_policy(ttype)
+                if not policy.get("owner_key_for"):
+                    stats["no_resolver"] += 1
+                    continue
+                owner = resolve_owner_key(policy, target_type=ttype, target_key=tkey)
+            except UnknownTargetType:
+                stats["no_resolver"] += 1
+                continue
+            except Exception:  # noqa: BLE001 - one bad target, not a dead walk
+                logger.warning(
+                    "reviews backfill: owner_key_for failed for %s:%s",
+                    ttype,
+                    tkey,
+                    exc_info=True,
+                )
+                stats["unresolved"] += 1
+                continue
+            if not owner:
+                stats["unresolved"] += 1
+                continue
+            rows = Review.objects.filter(
+                target_type=ttype, target_key=tkey, owner_key=""
+            )
+            stats["stamped_rows"] += (
+                rows.count() if dry_run else rows.update(owner_key=owner)
+            )
+            stats["stamped_targets"] += 1
+            if limit and stats["targets"] >= limit:
+                break
+
+        last = (page[-1][0], page[-1][1])
+        if limit and stats["targets"] >= limit:
+            break
+    return stats
 
 
 def _encode_cursor(target_type: str, target_key: str) -> str:
@@ -355,10 +509,19 @@ def create_review(
         else ReviewStatus.PUBLISHED
     )
 
+    # Who owns the reviewed thing — asked once, here, and denormalised onto the
+    # row so the owner-wide aggregate never has to ask the host again (and the
+    # module never has to know what "owning" means). Empty when the type
+    # registers no resolver, which is the default.
+    owner_key = resolve_owner_key(
+        policy, target_type=target_type, target_key=target_key
+    )
+
     with transaction.atomic():
         review = Review.objects.create(
             target_type=target_type,
             target_key=target_key,
+            owner_key=owner_key,
             author=author,
             rating=rating,
             body=body,

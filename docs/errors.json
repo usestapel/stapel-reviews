@@ -186,6 +186,16 @@
     "owner": "stapel_reviews"
   },
   {
+    "code": "error.400.reviews_too_many_owner_keys",
+    "status": 400,
+    "params": [
+      "max"
+    ],
+    "remediation": "fix_input",
+    "en": "Too many owner keys in one request (max {max})",
+    "owner": "stapel_reviews"
+  },
+  {
     "code": "error.400.reviews_unknown_target_type",
     "status": 400,
     "params": [],

@@ -26,9 +26,16 @@
   `reviews.review.hidden`) carrying the fresh aggregate, so a host catalog can
   maintain its OWN rating projection (§10) without ever calling back. The same
   aggregate is exposed synchronously as the `reviews.aggregate` comm Function.
+- **Owner-wide aggregate (optional)** — a target type may also declare
+  `owner_key_for`, the host's answer to "who owns this target". It is asked at
+  write time and denormalised onto `Review.owner_key`, which is what lets the
+  module answer "what is this *seller* rated, over everything they own"
+  (`reviews.aggregates_by_owner_keys`) while still knowing nothing about
+  sellers or listings. Registering none leaves the column empty and changes
+  nothing (seam #5a).
 - **API** — create review, list by target (anchor-paginated, published-only for
-  non-moderators), aggregate by target, moderate (hide/publish), respond. DTO +
-  serializer seams + OpenAPI (drf-spectacular).
+  non-moderators), aggregate by target, batch aggregate by owner, moderate
+  (hide/publish), respond. DTO + serializer seams + OpenAPI (drf-spectacular).
 
 **Why target-generic.** "We don't know what will be reviewed." Folding reviews
 into a catalog couples them to one domain (a SellerProfile) and creates
@@ -47,6 +54,7 @@ tests). A policy is a plain dict:
 {
     "can_review":     "comm.function.name" | None,   # author eligibility
     "can_moderate":   "comm.function.name" | None,   # moderate + respond
+    "owner_key_for":  callable | "comm.function.name" | None,  # who owns the target
     "moderation":     "pre" | "post",                # else MODERATION_DEFAULT
     "one_per_author": bool,                          # default False
     "allow_response": bool,                          # else RESPONSES
@@ -111,6 +119,36 @@ here:
   `total` is reported on the first page only.
 
 Schemas: `schemas/functions/reviews.aggregates_{by_keys,export}.json`.
+
+### 5a. Owner-wide aggregate — `owner_key_for` + `reviews.aggregates_by_owner_keys`
+
+A marketplace needs the rating of a **seller**, not only of each listing, and
+the module must not learn what a listing is to produce it. The whole mechanism
+is one optional resolver plus one denormalised column:
+
+- **`owner_key_for`** in a type policy — a callable
+  `owner_key_for(target_key) -> str | None`, or a comm Function name called
+  with `{target_type, target_key}` (answering a bare string or
+  `{"owner_key": ...}`) for a policy that must stay JSON-shaped. Asked **once,
+  at write time**, by `registry.resolve_owner_key`; a resolver that raises
+  blocks the write rather than stamping nothing, because an unstamped review is
+  a seller rating quietly missing reviews.
+- **`Review.owner_key`** (CharField 255, blank, indexed) — the answer, stored
+  beside the review. Empty is the norm: a type that registers no resolver
+  stamps nothing and every other behaviour is identical.
+- **`reviews.aggregates_by_owner_keys`** — `{owner_keys, target_type?} ->
+  {owner_key: {avg, count}}` over published reviews, same rounding as
+  `reviews.aggregate`, unreviewed owners absent, reviews with no owner key
+  excluded rather than pooled under `""`. Exposed publicly as
+  `POST /reviews/api/v1/aggregates/by-owner/` (≤ 100 owner keys per request;
+  over that is `error.400.reviews_too_many_owner_keys`).
+- **`manage.py reviews_backfill_owner_keys`** — the pass over rows written
+  before a resolver existed. Idempotent (candidates are exactly the rows whose
+  owner key is still empty), keyset-paged, one resolver call per distinct
+  target, `--target-type` / `--batch-size` / `--limit` / `--dry-run`. Here a
+  resolver that raises is counted and stepped over, not fatal.
+
+Schema: `schemas/functions/reviews.aggregates_by_owner_keys.json`.
 
 ### 6. Moderation seam — `moderation.completed` (consume) + `reviews.moderation_content`
 
@@ -195,6 +233,12 @@ the URL. No need to rewrite HTTP method bodies.
   no leak, no error).
 - Reads (`list`, `aggregate`) are permissive on unknown target types (empty
   result); **writes** require the type to be registered.
+- `POST /reviews/api/v1/aggregates/by-owner/` is a **read** despite the verb —
+  public, `reviews-aggregate`-throttled, body `{owner_keys: [...],
+  target_type?}` with at most 100 keys, answering the same
+  `{owner_key: {avg, count}}` map as the comm Function. A POST because owner
+  keys are opaque host strings and a page showing twenty sellers wants one
+  request.
 
 ### Contract emission — the `schema` + `flows` + `errors` + `capabilities` quartet
 
@@ -213,6 +257,14 @@ only — drf-spectacular renders differently across minors). `flows.json` is `[]
   the `can_review` / `can_moderate` comm callback's job.
 - **Do not** recompute the aggregate in the host from raw reviews — subscribe
   to the published/hidden facts and project.
+- **Do not** derive a seller's rating by fetching their listings and averaging
+  the per-listing aggregates. That re-implements the visibility rule, costs an
+  N+1, and drops whatever the catalog forgot to return; register
+  `owner_key_for` and read `reviews.aggregates_by_owner_keys`.
+- **Do not** treat an empty `owner_key` as an owner. Rows nobody answered for
+  are excluded from the owner aggregate, never pooled under `""` — and after
+  registering a resolver, run the backfill, or the seller rating silently
+  counts only reviews written since.
 - **Do not** fail *open* on a missing `can_moderate` callback — an unset
   moderator gate denies, it never silently authorizes.
 - **Do not** widen `SYSTEM_ACTOR` into a general "trusted caller" flag. It has

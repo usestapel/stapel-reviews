@@ -18,6 +18,11 @@ Functions (see schemas/functions/):
 - ``reviews.aggregates_by_keys`` — the batch form of the above, and the
   ``live_query`` half of a host rating Projection (local mode reads through it
   instead of keeping a table).
+- ``reviews.aggregates_by_owner_keys`` — the same batch read one level up the
+  ownership chain: many OWNER keys in, ``{owner_key: {avg, count}}`` out, so a
+  marketplace can show a seller-wide rating without this module knowing what a
+  seller owns (the link is ``Review.owner_key``, stamped by the type policy's
+  ``owner_key_for`` resolver).
 - ``reviews.aggregates_export`` — the cursor-paged snapshot, and the
   ``source_of_truth`` half of that same Projection (``rebuild`` /
   ``drift_check`` read through it).
@@ -60,6 +65,22 @@ def aggregates_by_keys(payload):
 
     return services.aggregates_by_keys(
         payload["keys"], target_type=payload.get("target_type") or ""
+    )
+
+
+@function("reviews.aggregates_by_owner_keys")
+def aggregates_by_owner_keys(payload):
+    """Batch-read the aggregate over everything each OWNER owns.
+
+    Input: ``{"owner_keys": [str, ...], "target_type": str?}``.
+    Output: ``{owner_key: {"avg": number, "count": integer}}`` — owner keys
+    with no published review are absent, same convention (and same rounding)
+    as ``reviews.aggregates_by_keys``.
+    """
+    from . import services
+
+    return services.aggregates_by_owner_keys(
+        payload["owner_keys"], target_type=payload.get("target_type") or ""
     )
 
 

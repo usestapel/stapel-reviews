@@ -5,6 +5,72 @@
     "version": "0.0.0"
   },
   "paths": {
+    "/reviews/api/v1/aggregates/by-owner/": {
+      "post": {
+        "operationId": "reviews_api_v1_aggregates_by_owner_create",
+        "description": "The rating of an owner — avg and count over published reviews of\neverything that owner owns — for up to 100 owners in one call.\n\nAnswers `{owner_key: {avg, count}}`; an owner nobody has published a review\nabout is absent from the map rather than present with zeros. Optional\n`target_type` narrows the count to one kind of target.\n\nA POST because the owner keys are opaque host strings of unbounded length,\nand a page showing twenty sellers wants one request. It reads and never\nwrites, so it sits in the same public, throttled position as\n`GET /reviews/aggregate` — published reviews only, so an anonymous caller\nlearns nothing a moderator would need withheld.\n\nThe ownership link is the review's owner key, stamped when the review is\nwritten by the target type's optional `owner_key_for` resolver. A\ndeployment that registers none gets an empty map, which is the honest\nanswer: the module was never told who owns anything.\n\n**Permissions:** `AllowAny`",
+        "tags": [
+          "Reviews"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OwnerAggregatesRequest"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/OwnerAggregatesRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/OwnerAggregatesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {}
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Owner key -> the rating aggregate over published reviews of everything that owner owns. Owner keys with no published review are absent from the map rather than present with zeros.",
+                  "additionalProperties": {
+                    "type": "object",
+                    "properties": {
+                      "avg": {
+                        "type": "number",
+                        "format": "double",
+                        "description": "Mean rating, three decimals (0.0 at count 0)."
+                      },
+                      "count": {
+                        "type": "integer",
+                        "description": "Number of published reviews across the owner's targets."
+                      }
+                    },
+                    "required": [
+                      "avg",
+                      "count"
+                    ]
+                  }
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
     "/reviews/api/v1/reviews": {
       "get": {
         "operationId": "reviews_api_v1_reviews_retrieve",
@@ -340,6 +406,26 @@
         },
         "required": [
           "action"
+        ]
+      },
+      "OwnerAggregatesRequest": {
+        "type": "object",
+        "description": "Batch-read the rating aggregate of many owners.",
+        "properties": {
+          "owner_keys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Opaque host-owned owner keys (at most 100 per request)"
+          },
+          "target_type": {
+            "type": "string",
+            "description": "Optional narrowing to a single target type"
+          }
+        },
+        "required": [
+          "owner_keys"
         ]
       },
       "RespondRequest": {

@@ -1,6 +1,6 @@
 {
   "module": "stapel-reviews",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "provides": "Target-generic reviews and ratings: an author rates and reviews an opaque host-defined target (target_type + target_key), driven by a per-target-type policy registry (who may review, pre/post moderation, one-review-per-author, owner responses) whose authority questions are answered by host comm callbacks. The module owns the per-target aggregate (avg/count over published reviews) and emits a generic visibility-change fact carrying it, so a host catalog maintains its own rating projection without calling back.",
   "axes": [
     {
@@ -41,6 +41,11 @@
       "summary": "The flagship seam: the module ships knowing NO target types. A host registers what may be reviewed ({type_name: policy}, merged over the empty built-ins; None removes a type). A policy sets moderation (pre/post), one-review-per-author, whether owner responses are allowed, and — crucially — the comm Function names the module calls to ask the host 'may this author review?' (can_review) and 'may this actor moderate/respond?' (can_moderate), so the module never imports a host model."
     },
     {
+      "name": "owner_key_for",
+      "kind": "callback",
+      "summary": "The optional third host answer inside a TARGET_TYPES policy: 'who OWNS this target?', as a callable owner_key_for(target_key) -> str | None or a comm Function name. Asked once, when the review is written, and denormalised onto Review.owner_key — that one column is what turns per-target ratings into a seller-wide rating without giving the module a concept of a seller. Registering none leaves owner keys empty and every other behaviour identical."
+    },
+    {
       "name": "reviews.review.published",
       "kind": "comm_event",
       "summary": "The projection hook: when a review becomes visible the module emits this fact carrying the freshly recomputed target aggregate {avg, count}; a host catalog subscribes to maintain its own avg_rating projection per (target_type, target_key) without calling back (§10 projection pattern)."
@@ -59,6 +64,11 @@
       "name": "reviews.aggregates_by_keys",
       "kind": "comm_function",
       "summary": "The batch aggregate: many target keys in one call, omitting keys nobody has reviewed. The live_query half of a host rating Projection — in local mode stapel-core reads ratings straight through it, so the host keeps no table and cannot go stale."
+    },
+    {
+      "name": "reviews.aggregates_by_owner_keys",
+      "kind": "comm_function",
+      "summary": "The same batch aggregate one level up the ownership chain: many OWNER keys in, {owner_key: {avg, count}} out, so a marketplace can put a seller-wide rating next to a listing without this module learning what a seller owns. The link is the denormalised Review.owner_key, stamped at write time by the target type's owner_key_for resolver; a host that registers none gets an empty answer and nothing else changes."
     },
     {
       "name": "reviews.aggregates_export",
@@ -123,6 +133,12 @@
       "intent": "Drop the runtime registrations, leaving the settings layer untouched — a TEST lever, and the reason the runtime overrides are kept in their own dict: reviews' own conftest calls it between cases so a type registered by one test cannot leak into the next. Product code that finds itself calling this is undoing a registration that belongs in STAPEL_REVIEWS[\"TARGET_TYPES\"], where it is declarative and survives a process reload."
     },
     {
+      "name": "resolve_owner_key",
+      "kind": "factory",
+      "path": "stapel_reviews.registry.resolve_owner_key",
+      "intent": "Ask a resolved policy's owner_key_for resolver who owns a target, in either form it may be written (a callable, or a comm Function name) and with 'no resolver' and 'no owner' both answering \"\". Reach for it when you need the same owner key the module stamped — a host that recomputes ownership its own way will disagree with the stored column the moment its rules change, and the owner aggregate reads the column."
+    },
+    {
       "name": "resolve_policy",
       "kind": "factory",
       "path": "stapel_reviews.registry.resolve_policy",
@@ -150,6 +166,15 @@
       ]
     },
     {
+      "name": "aggregates_by_owner_keys",
+      "kind": "factory",
+      "path": "stapel_reviews.services.aggregates_by_owner_keys",
+      "intent": "The rating of an OWNER — avg/count over published reviews of every target the host said they own — for many owners in one query, unreviewed owners absent and unowned reviews excluded rather than pooled under an empty key. This is the seller rating a marketplace shows; deriving it by fetching a seller's listings and averaging their per-listing aggregates re-implements the visibility rule, costs an N+1, and silently drops any listing the catalog forgot to return.",
+      "instead_of": [
+        "stapel_reviews.models.Review.objects.aggregate"
+      ]
+    },
+    {
       "name": "aggregates_export",
       "kind": "factory",
       "path": "stapel_reviews.services.aggregates_export",
@@ -166,6 +191,12 @@
       "instead_of": [
         "stapel_reviews.models.Review.status"
       ]
+    },
+    {
+      "name": "backfill_owner_keys",
+      "kind": "factory",
+      "path": "stapel_reviews.services.backfill_owner_keys",
+      "intent": "Retro-stamp Review.owner_key on rows written before a target type declared its owner_key_for resolver (also exposed as manage.py reviews_backfill_owner_keys). Run it once after registering a resolver: without it the owner aggregate answers only for reviews written since, which reads as a real seller rating and is not one. Idempotent, keyset-paged and one resolver call per distinct target, so it is safe to rerun after fixing whatever could not answer."
     },
     {
       "name": "create_review",
@@ -213,7 +244,7 @@
       ]
     }
   ],
-  "operations_total": 5,
+  "operations_total": 6,
   "requires": [
     {
       "module": "stapel-core",

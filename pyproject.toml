@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stapel-reviews"
-version = "0.5.0"
+version = "0.6.0"
 description = "Target-generic reviews and ratings for the Stapel framework"
 readme = "README.md"
 license = { text = "MIT" }
@@ -41,7 +41,12 @@ all = []
 
 [tool.setuptools]
 package-dir = {"stapel_reviews" = "."}
-packages = ["stapel_reviews", "stapel_reviews.migrations"]
+packages = [
+    "stapel_reviews",
+    "stapel_reviews.migrations",
+    "stapel_reviews.management",
+    "stapel_reviews.management.commands",
+]
 
 [tool.setuptools.package-data]
 stapel_reviews = ["py.typed", "migrations/*.py", "schemas/**/*.json", "docs/capabilities.json", "docs/flows.json", "docs/errors.json", "docs/llms.txt", "CONFIG.MD"]

@@ -51,6 +51,22 @@ class Review(models.Model):
     target_type = models.CharField(max_length=64, db_index=True)
     target_key = models.CharField(max_length=255, db_index=True)
 
+    # Denormalised owner of the target, as answered by the type policy's
+    # ``owner_key_for`` resolver at write time (registry.resolve_owner_key).
+    #
+    # It exists for exactly one question the opaque target cannot answer: "what
+    # is this SELLER rated, over everything they own". Grouping by target_key
+    # gives a per-listing rating; a marketplace needs the rating of whoever
+    # owns those listings, and the module must not learn what a listing is to
+    # produce it. So the host answers "who owns this target" once, at the
+    # moment the review is written, and the answer is stored beside the review.
+    #
+    # Empty is the norm, not a defect: a host that registers no resolver never
+    # fills it and nothing in the module changes — every owner query simply
+    # finds nothing. Blank rows are excluded from the owner aggregate rather
+    # than grouped under "" (services.aggregates_by_owner_keys).
+    owner_key = models.CharField(max_length=255, blank=True, default="", db_index=True)
+
     author = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -78,6 +94,10 @@ class Review(models.Model):
                 name="rev_target_created",
             ),
             models.Index(fields=["author"], name="rev_author"),
+            # The owner aggregate's own access path: owner_key IN (...) AND
+            # status IN (...) — the same shape as rev_target_status, one level
+            # up the ownership chain.
+            models.Index(fields=["owner_key", "status"], name="rev_owner_status"),
         ]
 
     def __str__(self):
