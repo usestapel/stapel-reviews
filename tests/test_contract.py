@@ -331,7 +331,7 @@ def test_readme_version_matches_the_package():
 
 
 def test_owner_aggregates_endpoint_is_declared_public_and_keyed_by_owner():
-    """The owner-wide rating surface (`POST .../aggregates/by-owner/`).
+    """The owner-wide rating surface (`POST .../reviews/aggregates/by-owner`).
 
     Three things a generated client cannot guess and a host cannot see from
     the code: that the endpoint exists at all, that it is readable
@@ -339,7 +339,7 @@ def test_owner_aggregates_endpoint_is_declared_public_and_keyed_by_owner():
     keyed by owner key rather than a fixed object — the same shape the
     `reviews.aggregates_by_owner_keys` comm Function returns."""
     schema = json.loads((DOCS / "schema.json").read_text())
-    path = "/reviews/api/v1/aggregates/by-owner/"
+    path = "/reviews/api/v1/reviews/aggregates/by-owner"
     assert path in schema["paths"], "the owner aggregate endpoint is not in the contract"
     op = schema["paths"][path]["post"]
 

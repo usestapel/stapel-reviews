@@ -38,7 +38,7 @@ class OwnerAggregatesRequestSerializer(StapelDataclassSerializer):
         dataclass = OwnerAggregatesRequest
 
 
-#: The response schema of ``POST .../aggregates/by-owner/``: a map keyed by
+#: The response schema of ``POST /reviews/aggregates/by-owner``: a map keyed by
 #: owner key. Deliberately the same shape the
 #: ``reviews.aggregates_by_owner_keys`` comm Function returns — an owner key
 #: with no published review is simply not a key of the map, so the HTTP reader

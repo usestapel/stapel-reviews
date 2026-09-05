@@ -24,7 +24,7 @@ pip install stapel-reviews
 
 | Fact | Value |
 |---|---|
-| Version | `0.6.0` |
+| Version | `0.6.1` |
 | Python | `>=3.11` (3.11, 3.12, 3.13, 3.14) |
 | HTTP operations | 6 |
 | Config axes | 2 |
@@ -171,7 +171,7 @@ STAPEL_REVIEWS = {
 
 The resolver is asked once, when the review is written, and its answer is
 stored on `Review.owner_key`. Reads go through
-`reviews.aggregates_by_owner_keys` or `POST /reviews/api/v1/aggregates/by-owner/`
+`reviews.aggregates_by_owner_keys` or `POST /reviews/api/v1/reviews/aggregates/by-owner`
 (public, up to 100 owner keys per call), which return `{owner_key: {avg,
 count}}` over published reviews with the same rounding as `reviews.aggregate`.
 Reviews written before the resolver was registered carry an empty owner key —

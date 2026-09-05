@@ -21,7 +21,7 @@ urlpatterns = [
     path("reviews", ReviewListCreateView.as_view(), name="reviews-list-create"),
     path("reviews/aggregate", AggregateView.as_view(), name="reviews-aggregate"),
     path(
-        "aggregates/by-owner/",
+        "reviews/aggregates/by-owner",
         OwnerAggregatesView.as_view(),
         name="reviews-aggregates-by-owner",
     ),

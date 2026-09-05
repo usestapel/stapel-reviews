@@ -21,7 +21,7 @@ default below. `MODERATION_DEFAULT` and `RESPONSES` are CTO-facing config axes
 | RATING_MIN | env | inclusive minimum rating (out-of-range is a 400). | no | 1 |
 | RATING_MAX | env | inclusive maximum rating (out-of-range is a 400). | no | 5 |
 | LIST_THROTTLE | env | rate limit for `GET /reviews` (anonymously readable — storefront F5). DRF rate string. | no | 120/min |
-| AGGREGATE_THROTTLE | env | rate limit for `GET /reviews/aggregate` and `POST /aggregates/by-owner/` (both anonymously readable). DRF rate string. | no | 300/min |
+| AGGREGATE_THROTTLE | env | rate limit for `GET /reviews/aggregate` and `POST /reviews/aggregates/by-owner` (both anonymously readable). DRF rate string. | no | 300/min |
 | ALLOW_ANONYMOUS_WRITES | env | whether a guest (anonymous account) may leave a review. Gates `POST /reviews` only; the reads stay anonymous either way. | no | false |
 
 ### ALLOW_ANONYMOUS_WRITES
@@ -52,7 +52,7 @@ and answering a bare string or `{"owner_key": ...}`.
 It is asked once, when the review is written, and the answer is denormalised
 onto `Review.owner_key`. That single column is what lets the module answer
 "what is this **seller** rated, over everything they own"
-(`reviews.aggregates_by_owner_keys`, `POST /reviews/api/v1/aggregates/by-owner/`)
+(`reviews.aggregates_by_owner_keys`, `POST /reviews/api/v1/reviews/aggregates/by-owner`)
 without ever learning what a listing or a seller is. A resolver that raises is
 not swallowed on the write path — an unstamped review is a seller rating that
 is quietly missing reviews.

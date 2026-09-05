@@ -140,7 +140,7 @@ is one optional resolver plus one denormalised column:
   {owner_key: {avg, count}}` over published reviews, same rounding as
   `reviews.aggregate`, unreviewed owners absent, reviews with no owner key
   excluded rather than pooled under `""`. Exposed publicly as
-  `POST /reviews/api/v1/aggregates/by-owner/` (≤ 100 owner keys per request;
+  `POST /reviews/api/v1/reviews/aggregates/by-owner` (≤ 100 owner keys per request;
   over that is `error.400.reviews_too_many_owner_keys`).
 - **`manage.py reviews_backfill_owner_keys`** — the pass over rows written
   before a resolver existed. Idempotent (candidates are exactly the rows whose
@@ -233,7 +233,7 @@ the URL. No need to rewrite HTTP method bodies.
   no leak, no error).
 - Reads (`list`, `aggregate`) are permissive on unknown target types (empty
   result); **writes** require the type to be registered.
-- `POST /reviews/api/v1/aggregates/by-owner/` is a **read** despite the verb —
+- `POST /reviews/api/v1/reviews/aggregates/by-owner` is a **read** despite the verb —
   public, `reviews-aggregate`-throttled, body `{owner_keys: [...],
   target_type?}` with at most 100 keys, answering the same
   `{owner_key: {avg, count}}` map as the comm Function. A POST because owner

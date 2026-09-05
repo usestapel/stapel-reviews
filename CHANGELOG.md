@@ -4,6 +4,25 @@ All notable changes to stapel-reviews are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.6.1] — 2026-09-05
+
+### The owner aggregate endpoint follows the module's URL style
+
+The owner aggregate endpoint follows the module's URL style; the 0.6.0 path is
+removed, nobody had integrated it. It is now
+`POST /reviews/api/v1/reviews/aggregates/by-owner` — resource-scoped under
+`reviews/` and without a trailing slash, like every other endpoint this module
+mounts — rather than `POST /reviews/api/v1/aggregates/by-owner/`. Only the
+route moved: the request body, the `{owner_key: {avg, count}}` response, the
+`reviews.aggregates_by_owner_keys` comm Function, the `owner_key_for` resolver
+and the backfill command are untouched, so a host that has only registered the
+resolver has nothing to change.
+
+Filed as a patch rather than a minor (this repo reads pre-1.0 minor as
+breaking) because the removed path existed for the length of one release and
+had no callers; a client generated from `docs/schema.json` picks the new
+operation up by regenerating.
+
 ## [0.6.0] — 2026-09-05
 
 ### A seller-wide rating, out of a module that still knows nothing about sellers

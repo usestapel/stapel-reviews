@@ -4,7 +4,7 @@ A marketplace needs "what is this SELLER rated" out of a module that knows only
 opaque targets. The mechanism under test is the one denormalised column
 (``Review.owner_key``), filled by the target type's optional ``owner_key_for``
 resolver when the review is written, read back by
-``reviews.aggregates_by_owner_keys`` / ``POST .../aggregates/by-owner/``, and
+``reviews.aggregates_by_owner_keys`` / ``POST .../reviews/aggregates/by-owner``, and
 retro-filled for older rows by ``manage.py reviews_backfill_owner_keys``.
 
 The property that matters most is the *absence* of the mechanism: a host that
@@ -218,7 +218,7 @@ class TestOwnerAggregate:
 
 # ── HTTP surface ───────────────────────────────────────────────────────────
 
-URL = "/reviews/api/v1/aggregates/by-owner/"
+URL = "/reviews/api/v1/reviews/aggregates/by-owner"
 
 
 @pytest.mark.django_db
