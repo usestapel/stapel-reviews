@@ -142,6 +142,13 @@ is one optional resolver plus one denormalised column:
   excluded rather than pooled under `""`. Exposed publicly as
   `POST /reviews/api/v1/reviews/aggregates/by-owner` (≤ 100 owner keys per request;
   over that is `error.400.reviews_too_many_owner_keys`).
+- **`services.list_reviews_by_owner`** — the ROWS along the same axis, for a
+  seller page's reviews tab: every review of everything an owner owns, newest
+  first, `target_type` narrowing optional, an empty owner key matching nothing.
+  Exposed on the list endpoint as `GET /reviews/api/v1/reviews?owner_key=…`,
+  used INSTEAD of `target_type` + `target_key` (naming both is
+  `error.400.reviews_ambiguous_addressing`). Index: `rev_owner_created`
+  (`owner_key`, `-created_at`), the ordering the anchor cursor pages on.
 - **`manage.py reviews_backfill_owner_keys`** — the pass over rows written
   before a resolver existed. Idempotent (candidates are exactly the rows whose
   owner key is still empty), keyset-paged, one resolver call per distinct
@@ -231,6 +238,15 @@ the URL. No need to rewrite HTTP method bodies.
   Non-moderators see published only; a moderator may pass `?include=all`
   (silently narrowed to published if the `can_moderate` callback denies —
   no leak, no error).
+- List is addressed along **exactly one** axis: a target
+  (`target_type` + `target_key`) or an owner (`owner_key`, with `target_type`
+  free to narrow it). Both is `error.400.reviews_ambiguous_addressing`,
+  neither is `error.400.reviews_unknown_target_type` — the 400 it always was.
+  On the owner axis `?include=all` is gated on core's staff predicate rather
+  than on `can_moderate`: that callback answers about ONE target, and this
+  list spans every target an owner owns. A non-staff caller asking for `all`
+  is silently narrowed to published, exactly as a non-moderator is on the
+  target axis.
 - Reads (`list`, `aggregate`) are permissive on unknown target types (empty
   result); **writes** require the type to be registered.
 - `POST /reviews/api/v1/reviews/aggregates/by-owner` is a **read** despite the verb —

@@ -1,0 +1,14 @@
+{
+  "error.400.reviews_ambiguous_addressing": "Список отзывов адресуется либо объектом (target_type + target_key), либо владельцем (owner_key), но не обоими сразу",
+  "error.400.reviews_duplicate_review": "Вы уже оставляли отзыв об этом объекте",
+  "error.400.reviews_invalid_moderation_action": "Действие модерации должно быть одним из: hide, publish",
+  "error.400.reviews_invalid_rating": "Оценка вне допустимого диапазона",
+  "error.400.reviews_response_not_allowed": "Для этого типа объектов ответы не разрешены",
+  "error.400.reviews_too_many_owner_keys": "Слишком много ключей владельцев в одном запросе (не более {max})",
+  "error.400.reviews_unknown_target_type": "Неизвестный тип объекта отзыва",
+  "error.403.reviews_anonymous_not_allowed": "Гостевая учётная запись не может оставить отзыв",
+  "error.403.reviews_cannot_moderate": "Вам нельзя модерировать отзывы об этом объекте",
+  "error.403.reviews_cannot_review": "Вам нельзя оставить отзыв об этом объекте",
+  "error.404.reviews_review_not_found": "Отзыв не найден",
+  "error.409.reviews_already_responded": "На этот отзыв уже есть ответ"
+}

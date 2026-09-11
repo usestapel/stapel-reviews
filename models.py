@@ -98,6 +98,14 @@ class Review(models.Model):
             # status IN (...) — the same shape as rev_target_status, one level
             # up the ownership chain.
             models.Index(fields=["owner_key", "status"], name="rev_owner_status"),
+            # The owner LIST's access path (a seller page's reviews tab):
+            # owner_key = ... ordered by -created_at, the anchor field the
+            # list endpoint pages on. rev_owner_status answers the aggregate's
+            # grouped count but leaves the ordering to a sort; this is the
+            # per-target rev_target_created one level up the ownership chain.
+            models.Index(
+                fields=["owner_key", "-created_at"], name="rev_owner_created"
+            ),
         ]
 
     def __str__(self):

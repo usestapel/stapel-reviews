@@ -24,13 +24,13 @@ pip install stapel-reviews
 
 | Fact | Value |
 |---|---|
-| Version | `0.6.1` |
+| Version | `0.7.0` |
 | Python | `>=3.11` (3.11, 3.12, 3.13, 3.14) |
 | HTTP operations | 6 |
 | Config axes | 2 |
-| Usage surface | 18 |
+| Usage surface | 19 |
 | Extension points | 11 |
-| Error codes | 53 |
+| Error codes | 54 |
 | Fleet dependencies | [`stapel-auth`](https://github.com/usestapel/stapel-auth) (optional) · [`stapel-core`](https://github.com/usestapel/stapel-core) |
 
 ## Documentation
@@ -174,6 +174,19 @@ stored on `Review.owner_key`. Reads go through
 `reviews.aggregates_by_owner_keys` or `POST /reviews/api/v1/reviews/aggregates/by-owner`
 (public, up to 100 owner keys per call), which return `{owner_key: {avg,
 count}}` over published reviews with the same rounding as `reviews.aggregate`.
+
+The same column answers the seller page's **rows**, not only its number: the
+list endpoint takes `owner_key` *instead of* the target pair —
+
+```
+GET /reviews/api/v1/reviews?owner_key=s-42[&target_type=listing]
+```
+
+— every review of everything that owner owns, newest first, same visibility
+rule, same anchor pagination, same item shape. Exactly one addressing per
+request: naming both a target and an owner is
+`error.400.reviews_ambiguous_addressing`, naming neither is
+`error.400.reviews_unknown_target_type` as before.
 Reviews written before the resolver was registered carry an empty owner key —
 stamp them once with:
 

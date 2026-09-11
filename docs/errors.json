@@ -154,6 +154,14 @@
     "owner": "stapel_core"
   },
   {
+    "code": "error.400.reviews_ambiguous_addressing",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "Address the review list by a target (target_type + target_key) or by an owner (owner_key), not by both",
+    "owner": "stapel_reviews"
+  },
+  {
     "code": "error.400.reviews_duplicate_review",
     "status": 400,
     "params": [],

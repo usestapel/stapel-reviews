@@ -208,6 +208,13 @@
       "instead_of": [
         "stapel_reviews.models.Review.objects.filter"
       ]
+    },
+    "list_reviews_by_owner": {
+      "kind": "factory",
+      "intent": "The same list one level up the ownership chain: everything an OWNER's targets were reviewed with, newest first, for a seller page's reviews tab. The link is the Review.owner_key the type's owner_key_for resolver stamped at write time, so the module still needs no concept of a seller; an empty owner key matches nothing rather than pooling every unstamped review under \"\". Reach for it instead of collecting a seller's target keys in the host and issuing a target-by-target list.",
+      "instead_of": [
+        "stapel_reviews.models.Review.objects.filter"
+      ]
     }
   }
 }

@@ -673,3 +673,32 @@ def list_reviews(target_type: str, target_key: str, *, include_all: bool = False
     if not include_all:
         qs = qs.filter(status__in=VISIBLE_STATUSES)
     return qs
+
+
+def list_reviews_by_owner(
+    owner_key: str, *, target_type: str = "", include_all: bool = False
+):
+    """Queryset of everything an OWNER's targets were reviewed with, newest
+    first — the list twin of :func:`aggregates_by_owner_keys`.
+
+    A seller page needs the seller's reviews as ROWS, not only as a number,
+    and the module still must not learn what a seller owns. The link is the
+    same denormalised :attr:`Review.owner_key` the owner aggregate reads,
+    stamped at write time by the type policy's ``owner_key_for`` resolver, so
+    this read needs no new host answer and no new column.
+
+    An empty ``owner_key`` matches nothing (rather than pooling every
+    unstamped review under ``""``), the same rule the owner aggregate applies:
+    "the owner is unknown" is not an owner. ``target_type`` narrows to one kind
+    of target, exactly as it does there. ``include_all`` is the moderator
+    surface and its gate lives in the view.
+    """
+    key = str(owner_key or "")
+    if not key:
+        return Review.objects.none()
+    qs = Review.objects.filter(owner_key=key)
+    if target_type:
+        qs = qs.filter(target_type=target_type)
+    if not include_all:
+        qs = qs.filter(status__in=VISIBLE_STATUSES)
+    return qs

@@ -1,0 +1,14 @@
+{
+  "error.400.reviews_ambiguous_addressing": "La lista de reseñas se dirige o bien a un objeto (target_type + target_key) o bien a un propietario (owner_key), nunca a ambos a la vez",
+  "error.400.reviews_duplicate_review": "Ya has dejado una reseña sobre este objeto",
+  "error.400.reviews_invalid_moderation_action": "La acción de moderación debe ser una de: hide, publish",
+  "error.400.reviews_invalid_rating": "La valoración está fuera del rango permitido",
+  "error.400.reviews_response_not_allowed": "Este tipo de objeto no admite respuestas",
+  "error.400.reviews_too_many_owner_keys": "Demasiadas claves de propietario en una sola petición (máximo {max})",
+  "error.400.reviews_unknown_target_type": "Tipo de objeto de reseña desconocido",
+  "error.403.reviews_anonymous_not_allowed": "Una cuenta de invitado no puede dejar reseñas",
+  "error.403.reviews_cannot_moderate": "No puedes moderar las reseñas de este objeto",
+  "error.403.reviews_cannot_review": "No puedes dejar una reseña sobre este objeto",
+  "error.404.reviews_review_not_found": "Reseña no encontrada",
+  "error.409.reviews_already_responded": "Esta reseña ya tiene una respuesta"
+}

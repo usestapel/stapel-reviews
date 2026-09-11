@@ -4,6 +4,58 @@ All notable changes to stapel-reviews are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.7.0] — 2026-09-11
+
+### The reviews of a seller, not only the number
+
+0.6.0 gave the module an owner without giving it a concept of one: the type
+policy's `owner_key_for` resolver stamps `Review.owner_key` when a review is
+written. The only thing that could be asked along that axis, though, was a
+number — `POST /reviews/api/v1/reviews/aggregates/by-owner`. A seller page's
+reviews tab needs the ROWS: every review of everything that seller owns, across
+many listings, newest first.
+
+So `GET /reviews/api/v1/reviews` now takes **`owner_key`** *instead of* the
+`(target_type, target_key)` pair:
+
+    GET /reviews/api/v1/reviews?owner_key=s-42&limit=20
+    GET /reviews/api/v1/reviews?owner_key=s-42&target_type=listing
+
+Exactly one addressing per request. Naming both a target and an owner is a 400
+with the new `error.400.reviews_ambiguous_addressing` — the two axes answer
+different questions and a request that names both is not a narrowing this
+module can honor, so it is refused rather than silently resolved in favour of
+either. Naming neither is the 400 it always was
+(`error.400.reviews_unknown_target_type`). `target_type` beside `owner_key` is
+a narrowing, not a second addressing.
+
+Everything else about the endpoint is what it already was: published-only for
+an ordinary caller, the same `-created_at` anchor pagination, the same item
+serializer. `?include=all` on the owner axis is gated on core's staff predicate
+rather than on the type's `can_moderate` callback — that callback answers about
+ONE target, and this list spans every target an owner owns; a staff account
+already reads every review through the Django admin, so nothing is widened. A
+non-staff caller asking for `all` is silently narrowed to published, exactly as
+a non-moderator is on the target axis. An empty `owner_key` matches nothing
+rather than pooling every unstamped review under `""`, the rule the owner
+aggregate already applies.
+
+Under it: `services.list_reviews_by_owner(owner_key, target_type=…,
+include_all=…)` and one added index, `rev_owner_created` on
+(`owner_key`, `-created_at`) — the ordering the anchor cursor pages on, where
+0.6.0's `rev_owner_status` answers the aggregate's grouped count. Migration
+`0003` is expand-only (one `AddIndex`), so an older release keeps running
+against the migrated schema.
+
+A host has nothing to change: the target addressing, the owner aggregate, the
+`owner_key_for` resolver and the backfill command are untouched. Filed as a
+minor because this repo reads pre-1.0 minor as breaking and the list
+endpoint's `target_type`/`target_key` are no longer *required* parameters in
+`docs/schema.json` — a client generated from it sees them become optional.
+
+Translations: this module now ships `translations/errors.{ru,es}.json` (all 12
+of its error keys, the new one included).
+
 ## [0.6.1] — 2026-09-05
 
 ### The owner aggregate endpoint follows the module's URL style

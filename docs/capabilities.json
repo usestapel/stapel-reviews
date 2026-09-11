@@ -1,6 +1,6 @@
 {
   "module": "stapel-reviews",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "provides": "Target-generic reviews and ratings: an author rates and reviews an opaque host-defined target (target_type + target_key), driven by a per-target-type policy registry (who may review, pre/post moderation, one-review-per-author, owner responses) whose authority questions are answered by host comm callbacks. The module owns the per-target aggregate (avg/count over published reviews) and emits a generic visibility-change fact carrying it, so a host catalog maintains its own rating projection without calling back.",
   "axes": [
     {
@@ -212,6 +212,15 @@
       "kind": "factory",
       "path": "stapel_reviews.services.list_reviews",
       "intent": "A target's reviews, newest first, with the visibility rule already applied: published only by default, and pending/hidden as well under include_all for a caller you have separately authorized as a moderator. VISIBLE_STATUSES is this module's definition of \"visible\"; a host filter spelled status == \"published\" agrees with it today and diverges the day another visible status exists.",
+      "instead_of": [
+        "stapel_reviews.models.Review.objects.filter"
+      ]
+    },
+    {
+      "name": "list_reviews_by_owner",
+      "kind": "factory",
+      "path": "stapel_reviews.services.list_reviews_by_owner",
+      "intent": "The same list one level up the ownership chain: everything an OWNER's targets were reviewed with, newest first, for a seller page's reviews tab. The link is the Review.owner_key the type's owner_key_for resolver stamped at write time, so the module still needs no concept of a seller; an empty owner key matches nothing rather than pooling every unstamped review under \"\". Reach for it instead of collecting a seller's target keys in the host and issuing a target-by-target list.",
       "instead_of": [
         "stapel_reviews.models.Review.objects.filter"
       ]

@@ -11,11 +11,16 @@ from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 from stapel_core.django.api.errors import StapelErrorResponse, StapelResponse
 from stapel_core.django.api.pagination import AnchorPagination
-from stapel_core.django.api.permissions import ANONYMOUS_ALLOWED, IsNotAnonymousUser
+from stapel_core.django.api.permissions import (
+    ANONYMOUS_ALLOWED,
+    IsNotAnonymousUser,
+    IsStaffUser,
+)
 
 from . import services
 from .dto import AggregateResponse, ResponseResponse, ReviewResponse
 from .errors import (
+    ERR_400_AMBIGUOUS_ADDRESSING,
     ERR_400_DUPLICATE_REVIEW,
     ERR_400_INVALID_MODERATION_ACTION,
     ERR_400_INVALID_RATING,
@@ -173,6 +178,54 @@ TARGET_QUERY_PARAMETERS = [
     ),
 ]
 
+#: The list endpoint's addressing parameters — the SAME target pair as above
+#: plus the owner axis, all optional at the schema level because the rule
+#: ("exactly one of the two addressings") is a relation between parameters,
+#: which OpenAPI cannot state per-parameter. ``ReviewListCreateView.get``
+#: enforces it: neither axis is ERR_400_UNKNOWN_TARGET_TYPE (as it always was),
+#: both is ERR_400_AMBIGUOUS_ADDRESSING.
+LIST_ADDRESSING_QUERY_PARAMETERS = [
+    OpenApiParameter(
+        "target_type",
+        str,
+        OpenApiParameter.QUERY,
+        required=False,
+        description=(
+            "Host-registered target-type key (registry.py). Required with "
+            "`target_key` to address one target's reviews; optional beside "
+            "`owner_key`, where it narrows the owner's reviews to one kind of "
+            "target."
+        ),
+    ),
+    OpenApiParameter(
+        "target_key",
+        str,
+        OpenApiParameter.QUERY,
+        required=False,
+        description=(
+            "Opaque host-owned target identifier. Address one target's "
+            "reviews with `target_type` + `target_key`, or a whole owner's "
+            "with `owner_key` — naming both axes is a 400 "
+            "(`error.400.reviews_ambiguous_addressing`), naming neither is a "
+            "400 (`error.400.reviews_unknown_target_type`)."
+        ),
+    ),
+    OpenApiParameter(
+        "owner_key",
+        str,
+        OpenApiParameter.QUERY,
+        required=False,
+        description=(
+            "Opaque host-owned OWNER key — every review of everything that "
+            "owner owns, newest first (a seller page's reviews tab). The link "
+            "is the review's stamped `owner_key` (the target type's "
+            "`owner_key_for` resolver), so a deployment that registers no "
+            "resolver finds nothing here. Used INSTEAD of the target pair; "
+            "`target_type` may narrow it."
+        ),
+    ),
+]
+
 #: Extra query parameter accepted only by the list endpoint (views.py:118-132).
 INCLUDE_QUERY_PARAMETER = OpenApiParameter(
     "include",
@@ -259,7 +312,7 @@ class ReviewListCreateView(SerializerSeamMixin, APIView):
 
     @extend_schema(
         parameters=[
-            *TARGET_QUERY_PARAMETERS,
+            *LIST_ADDRESSING_QUERY_PARAMETERS,
             INCLUDE_QUERY_PARAMETER,
             *ANCHOR_QUERY_PARAMETERS,
         ],
@@ -267,28 +320,54 @@ class ReviewListCreateView(SerializerSeamMixin, APIView):
     )
     def get(self, request):  # noqa: R007
         target_type, target_key = _target_params(request)
-        if not target_type or not target_key:
-            return StapelErrorResponse(400, ERR_400_UNKNOWN_TARGET_TYPE)
+        owner_key = request.query_params.get("owner_key") or ""
 
-        include_all = False
-        if request.query_params.get("include") == "all":
-            # Only a moderator/owner of the target may see pending/hidden. A
-            # non-moderator asking for "all" is silently narrowed to published
-            # (no leak, no error) — the type's can_moderate callback decides.
-            try:
-                policy = resolve_policy(target_type)
-                include_all = check_can_moderate(
-                    policy,
-                    actor_id=request.user.pk,
-                    target_type=target_type,
-                    target_key=target_key,
-                )
-            except UnknownTargetType:
-                include_all = False
+        # Exactly one addressing. The two axes answer different questions — one
+        # target's reviews vs one owner's — and a request that names both is
+        # not a narrowing this module can honor, so it is refused rather than
+        # silently resolved in favour of either.
+        if owner_key and target_key:
+            return StapelErrorResponse(400, ERR_400_AMBIGUOUS_ADDRESSING)
 
-        qs = services.list_reviews(
-            target_type, target_key, include_all=include_all
-        ).select_related("response")
+        wants_all = request.query_params.get("include") == "all"
+
+        if owner_key:
+            # The owner axis has no target_key to hand the type's can_moderate
+            # callback — that callback answers about ONE target, and this list
+            # spans every target an owner owns. So pending/hidden here is
+            # gated on core's staff predicate instead (a staff account already
+            # reads every review through the Django admin, so this widens no
+            # access), and a non-staff caller asking for `all` is silently
+            # narrowed to published, exactly as a non-moderator is on the
+            # target axis.
+            include_all = wants_all and IsStaffUser().has_permission(request, self)
+            qs = services.list_reviews_by_owner(
+                owner_key, target_type=target_type or "", include_all=include_all
+            ).select_related("response")
+        else:
+            if not target_type or not target_key:
+                return StapelErrorResponse(400, ERR_400_UNKNOWN_TARGET_TYPE)
+
+            include_all = False
+            if wants_all:
+                # Only a moderator/owner of the target may see pending/hidden.
+                # A non-moderator asking for "all" is silently narrowed to
+                # published (no leak, no error) — the type's can_moderate
+                # callback decides.
+                try:
+                    policy = resolve_policy(target_type)
+                    include_all = check_can_moderate(
+                        policy,
+                        actor_id=request.user.pk,
+                        target_type=target_type,
+                        target_key=target_key,
+                    )
+                except UnknownTargetType:
+                    include_all = False
+
+            qs = services.list_reviews(
+                target_type, target_key, include_all=include_all
+            ).select_related("response")
 
         paginator = ReviewAnchorPagination()
         page = paginator.paginate_queryset(qs, request, view=self)

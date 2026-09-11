@@ -154,16 +154,25 @@ def test_list_and_aggregate_declare_target_query_params():
     """`views.py:_target_params` reads target_type/target_key off the query
     string for both GET endpoints (never declared before A2/0.2.2 — a pure
     codegen client had no way to pass them, the storefront spec §1.8).
-    `include` is list-only (views.py:118-132); aggregate has no such param."""
+    `include` is list-only (views.py:118-132); aggregate has no such param.
+
+    The LIST declares a third addressing parameter, `owner_key` (0.7.0), and
+    all three are optional there: "exactly one of (target_type + target_key) /
+    owner_key" is a relation between parameters, which OpenAPI cannot state
+    per-parameter, so the view enforces it (both -> 400
+    `reviews_ambiguous_addressing`, neither -> 400 `reviews_unknown_target_type`).
+    The aggregate has one addressing and keeps both of its params required."""
     schema = json.loads((DOCS / "schema.json").read_text())
     list_params = {
         p["name"]: p
         for p in schema["paths"]["/reviews/api/v1/reviews"]["get"]["parameters"]
     }
     assert list_params["target_type"]["in"] == "query"
-    assert list_params["target_type"]["required"] is True
+    assert not list_params["target_type"].get("required")
     assert list_params["target_key"]["in"] == "query"
-    assert list_params["target_key"]["required"] is True
+    assert not list_params["target_key"].get("required")
+    assert list_params["owner_key"]["in"] == "query"
+    assert not list_params["owner_key"].get("required")
     assert list_params["include"]["in"] == "query"
     assert not list_params["include"].get("required")
 
