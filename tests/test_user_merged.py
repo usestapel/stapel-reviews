@@ -356,3 +356,21 @@ def test_only_two_columns_here_name_a_user():
             if remote is not None and remote._meta.label == django_settings.AUTH_USER_MODEL:
                 found.add(f"{model.__name__}.{field.name}")
     assert found == {"Review.author", "Response.author"}
+
+
+def test_flagged_rows_of_a_deregistered_type_still_move(settings, user, owner_user):
+    """Both rows were written while one_per_author was on, so both carry the
+    rev_one_per_author flag. The type is gone now; keeping both must not
+    collide on the constraint and abort the whole transfer."""
+    _register_type(settings, {"one_per_author": True})
+    for author in (owner_user, user):
+        Review.objects.create(
+            target_type="seller", target_key="s1", author=author, rating=3,
+            unique_per_author=True,
+        )
+    settings.STAPEL_REVIEWS = {"TARGET_TYPES": {}}
+
+    _merge(user, owner_user)
+
+    assert Review.objects.filter(author_id=owner_user.pk).count() == 2
+    assert Review.objects.filter(author_id=user.pk).count() == 0

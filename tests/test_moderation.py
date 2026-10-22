@@ -68,9 +68,9 @@ class TestModerate:
 @pytest.mark.django_db
 class TestRespond:
     def test_owner_responds(self, settings, user, owner_user):
-        register_function("fake.can_mod", lambda p: True)
+        register_function("fake.can_respond", lambda p: True)
         review = _make_review(
-            settings, user, {"can_moderate": "fake.can_mod", "allow_response": True}
+            settings, user, {"can_respond": "fake.can_respond", "allow_response": True}
         )
         resp = services.respond(review, author=owner_user, body="thanks")
         assert isinstance(resp, Response)
@@ -85,17 +85,17 @@ class TestRespond:
             services.respond(review, author=owner_user, body="nope")
 
     def test_non_owner_cannot_respond(self, settings, user, other_user):
-        register_function("fake.deny_mod", lambda p: False)
+        register_function("fake.deny_respond", lambda p: False)
         review = _make_review(
-            settings, user, {"can_moderate": "fake.deny_mod", "allow_response": True}
+            settings, user, {"can_respond": "fake.deny_respond", "allow_response": True}
         )
-        with pytest.raises(services.NotAllowedToModerate):
+        with pytest.raises(services.NotAllowedToRespond):
             services.respond(review, author=other_user, body="hi")
 
     def test_only_one_response(self, settings, user, owner_user):
-        register_function("fake.can_mod", lambda p: True)
+        register_function("fake.can_respond", lambda p: True)
         review = _make_review(
-            settings, user, {"can_moderate": "fake.can_mod", "allow_response": True}
+            settings, user, {"can_respond": "fake.can_respond", "allow_response": True}
         )
         services.respond(review, author=owner_user, body="first")
         with pytest.raises(services.AlreadyResponded):

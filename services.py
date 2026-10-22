@@ -23,7 +23,7 @@ import logging
 from dataclasses import dataclass
 from typing import Iterable, Optional
 
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Avg, Count, Max, Q
 from stapel_core.comm import emit
 
@@ -31,7 +31,9 @@ from .models import Review, ReviewStatus, VISIBLE_STATUSES, Response
 from .registry import (
     UnknownTargetType,
     check_can_moderate,
+    check_can_respond,
     check_can_review,
+    is_owner,
     resolve_owner_key,
     resolve_policy,
 )
@@ -88,6 +90,16 @@ class NotAllowedToModerate(Exception):
 
 class DuplicateReview(Exception):
     """one_per_author is on and the author already reviewed this target."""
+
+
+class SelfReview(Exception):
+    """The author owns the target and the policy's allow_self_review is off."""
+
+
+class NotAllowedToRespond(NotAllowedToModerate):
+    """The type's can_respond callback (or, without one, the owner check)
+    denied this actor the owner's reply. Subclasses NotAllowedToModerate so a
+    caller written against the single gate still catches it."""
 
 
 class InvalidRating(Exception):
@@ -478,7 +490,10 @@ def create_review(
 
     Enforces, in order: the target type is registered (``resolve_policy``
     raises ``UnknownTargetType``); the rating is in range; one-per-author (if
-    the policy sets it); the author is eligible (``can_review`` callback). Under
+    the policy sets it — a read here, and the partial unique constraint
+    ``rev_one_per_author`` for the concurrent case); the author is eligible
+    (``can_review`` callback); the author does not own the target unless the
+    policy sets ``allow_self_review`` (``SelfReview``). Under
     pre-moderation the review is created ``pending`` (no emit); under
     post-moderation it is ``published`` and a ``reviews.review.published`` fact
     is emitted with the new aggregate.
@@ -491,23 +506,13 @@ def create_review(
     if not isinstance(rating, int) or rating < lo or rating > hi:
         raise InvalidRating(f"rating {rating!r} not in [{lo}, {hi}]")
 
-    if policy["one_per_author"]:
-        exists = Review.objects.filter(
-            target_type=target_type, target_key=target_key, author=author
-        ).exists()
-        if exists:
-            raise DuplicateReview(target_type)
+    if policy["one_per_author"] and _has_review(target_type, target_key, author):
+        raise DuplicateReview(target_type)
 
     if not check_can_review(
         policy, author_id=author.pk, target_type=target_type, target_key=target_key
     ):
         raise NotAllowedToReview(target_type)
-
-    status = (
-        ReviewStatus.PENDING
-        if policy["moderation"] == "pre"
-        else ReviewStatus.PUBLISHED
-    )
 
     # Who owns the reviewed thing — asked once, here, and denormalised onto the
     # row so the owner-wide aggregate never has to ask the host again (and the
@@ -516,20 +521,44 @@ def create_review(
     owner_key = resolve_owner_key(
         policy, target_type=target_type, target_key=target_key
     )
+    if not policy["allow_self_review"] and is_owner(owner_key, author.pk):
+        raise SelfReview(target_type)
 
-    with transaction.atomic():
-        review = Review.objects.create(
-            target_type=target_type,
-            target_key=target_key,
-            owner_key=owner_key,
-            author=author,
-            rating=rating,
-            body=body,
-            status=status,
-        )
-        if status == ReviewStatus.PUBLISHED:
-            _emit_review_fact(review, EVENT_PUBLISHED)
+    status = (
+        ReviewStatus.PENDING
+        if policy["moderation"] == "pre"
+        else ReviewStatus.PUBLISHED
+    )
+
+    try:
+        with transaction.atomic():
+            review = Review.objects.create(
+                target_type=target_type,
+                target_key=target_key,
+                owner_key=owner_key,
+                author=author,
+                rating=rating,
+                body=body,
+                status=status,
+                unique_per_author=policy["one_per_author"],
+            )
+            if status == ReviewStatus.PUBLISHED:
+                _emit_review_fact(review, EVENT_PUBLISHED)
+    except IntegrityError:
+        # The existence check above is a read; a concurrent create by the same
+        # author can land between it and this insert. The partial unique
+        # constraint rev_one_per_author refuses the second row — the same
+        # answer the check gives, not a 500.
+        if policy["one_per_author"] and _has_review(target_type, target_key, author):
+            raise DuplicateReview(target_type) from None
+        raise
     return review
+
+
+def _has_review(target_type: str, target_key: str, author) -> bool:
+    return Review.objects.filter(
+        target_type=target_type, target_key=target_key, author=author
+    ).exists()
 
 
 def moderate_review(review: Review, *, actor, action: str, reason: str = "") -> Review:
@@ -639,26 +668,29 @@ def moderation_content(review_id) -> dict:
 def respond(review: Review, *, author, body: str) -> Response:
     """Attach the target owner's single response to ``review``.
 
-    Allowed only when the type policy's ``allow_response`` is on and the type's
-    ``can_moderate`` callback authorizes ``author`` (the owner uses the same
-    ownership gate as moderation). At most one response per review.
+    Allowed only when the type policy's ``allow_response`` is on and
+    ``registry.check_can_respond`` authorizes ``author``: the type's
+    ``can_respond`` callback, or — without one — the target owner (the
+    review's stamped ``owner_key``). ``can_moderate`` is not asked: replying
+    and hiding are different rights. At most one response per review.
 
     :data:`SYSTEM_ACTOR` is refused here: a Response is authored by a real user
     row, and the moderation bypass buys the platform a verdict on visibility,
     not a voice in the conversation.
     """
     if author is SYSTEM_ACTOR:
-        raise NotAllowedToModerate(review.target_type)
+        raise NotAllowedToRespond(review.target_type)
     policy = resolve_policy(review.target_type)
     if not policy["allow_response"]:
         raise ResponseNotAllowed(review.target_type)
-    if not check_can_moderate(
+    if not check_can_respond(
         policy,
         actor_id=author.pk,
         target_type=review.target_type,
         target_key=review.target_key,
+        owner_key=review.owner_key,
     ):
-        raise NotAllowedToModerate(review.target_type)
+        raise NotAllowedToRespond(review.target_type)
     if Response.objects.filter(review=review).exists():
         raise AlreadyResponded(str(review.id))
     return Response.objects.create(review=review, author=author, body=body)

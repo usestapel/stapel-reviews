@@ -26,6 +26,11 @@ ERR_403_CANNOT_REVIEW = "error.403.reviews_cannot_review"
 # only the second is fixed by signing up.
 ERR_403_ANONYMOUS_NOT_ALLOWED = "error.403.reviews_anonymous_not_allowed"
 ERR_403_CANNOT_MODERATE = "error.403.reviews_cannot_moderate"
+# The owner's reply is its own right (the type's can_respond, or the target
+# owner): refusing it is not "you may not moderate".
+ERR_403_CANNOT_RESPOND = "error.403.reviews_cannot_respond"
+# The author owns the reviewed target and the type's allow_self_review is off.
+ERR_403_SELF_REVIEW = "error.403.reviews_self_review"
 ERR_404_REVIEW_NOT_FOUND = "error.404.reviews_review_not_found"
 ERR_409_ALREADY_RESPONDED = "error.409.reviews_already_responded"
 
@@ -43,6 +48,8 @@ STAPEL_REVIEWS_ERRORS = {
     ERR_403_CANNOT_REVIEW: "You are not allowed to review this target",
     ERR_403_ANONYMOUS_NOT_ALLOWED: "A guest account may not leave a review",
     ERR_403_CANNOT_MODERATE: "You are not allowed to moderate reviews of this target",
+    ERR_403_CANNOT_RESPOND: "You are not allowed to respond to reviews of this target",
+    ERR_403_SELF_REVIEW: "You cannot review something you own",
     ERR_404_REVIEW_NOT_FOUND: "Review not found",
     ERR_409_ALREADY_RESPONDED: "This review already has a response",
 }
@@ -61,6 +68,8 @@ __all__ = [
     "ERR_403_CANNOT_REVIEW",
     "ERR_403_ANONYMOUS_NOT_ALLOWED",
     "ERR_403_CANNOT_MODERATE",
+    "ERR_403_CANNOT_RESPOND",
+    "ERR_403_SELF_REVIEW",
     "ERR_404_REVIEW_NOT_FOUND",
     "ERR_409_ALREADY_RESPONDED",
 ]

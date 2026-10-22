@@ -26,6 +26,10 @@ Functions (see schemas/functions/):
 - ``reviews.aggregates_export`` — the cursor-paged snapshot, and the
   ``source_of_truth`` half of that same Projection (``rebuild`` /
   ``drift_check`` read through it).
+- ``reviews.owner_is_target`` — a ready-made ``owner_key_for`` resolver for a
+  target type whose target IS its owner (a user profile keyed by user id).
+  Naming it in a policy makes the profile's user its owner: the one who may
+  respond, and the one who may not review it (``allow_self_review``).
 - ``reviews.moderation_content`` — a review's content for an external
   moderation module's screening and moderator card. Identifiers travel on the
   bus; content is fetched at the moment it is looked at.
@@ -113,3 +117,14 @@ def moderation_content(payload):
     from . import services
 
     return services.moderation_content(payload["review_id"])
+
+
+@function("reviews.owner_is_target")
+def owner_is_target(payload):
+    """Answer the target key as its own owner key.
+
+    Input: ``{"target_type": str, "target_key": str}``.
+    Output: ``{"owner_key": str}`` — the envelope ``registry.resolve_owner_key``
+    reads from a comm resolver.
+    """
+    return {"owner_key": str(payload["target_key"])}

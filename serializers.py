@@ -77,6 +77,12 @@ OWNER_AGGREGATES_RESPONSE_SCHEMA = {
 class ReviewCreateRequestSerializer(StapelDataclassSerializer):
     class Meta:
         dataclass = ReviewCreateRequest
+        # The column widths of Review.target_type / target_key: a longer value
+        # is a 400 here, not a DataError (500) at the INSERT on Postgres.
+        extra_kwargs = {
+            "target_type": {"max_length": 64},
+            "target_key": {"max_length": 255},
+        }
 
 
 class ModerateRequestSerializer(StapelDataclassSerializer):

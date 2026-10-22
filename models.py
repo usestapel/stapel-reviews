@@ -79,11 +79,25 @@ class Review(models.Model):
         max_length=16, choices=ReviewStatus.choices, default=ReviewStatus.PUBLISHED
     )
 
+    # Stamped from the type policy's ``one_per_author`` at write time. The
+    # policy lives in settings and a DB constraint cannot read settings, so
+    # the row carries the bit and the partial unique constraint below holds
+    # one flagged review per (target, author): two concurrent creates that
+    # both passed the service's existence check cannot both commit.
+    unique_per_author = models.BooleanField(default=False, db_default=False)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["target_type", "target_key", "author"],
+                condition=models.Q(unique_per_author=True),
+                name="rev_one_per_author",
+            ),
+        ]
         indexes = [
             models.Index(
                 fields=["target_type", "target_key", "status"],
@@ -117,8 +131,8 @@ class Response(models.Model):
 
     Enabled per target type by the ``allow_response`` policy (default
     ``RESPONSES``). Exactly one response per review (OneToOne). The responder
-    is whoever the type's ``can_moderate`` callback authorizes (the target
-    owner), recorded as ``author``.
+    is whoever the type's ``can_respond`` callback authorizes — the target
+    owner when the type names none — recorded as ``author``.
     """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

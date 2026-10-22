@@ -18,7 +18,9 @@ PYTHON ?= python3
 # --budget 5000: 4000 default -> 4500 when ALLOW_ANONYMOUS_WRITES brought an
 # eleventh error key and put the file 8 tokens over; -> 5000 when the owner-key
 # mechanism (owner_key_for, aggregates_by_owner_keys, backfill_owner_keys)
-# added three surface entries and two extension points. Raised deliberately
+# added three surface entries and two extension points; -> 5400 when the
+# split reply right (check_can_respond, is_owner) and two refusal keys
+# (cannot_respond, self_review) landed. Raised deliberately
 # rather than by shortening intent lines — the 18-entry surface section already
 # costs ~2.4k tokens next to a 53-key error registry, and it is the one part of
 # this file an agent reads to avoid rewriting a mechanism that exists
@@ -32,7 +34,7 @@ PYTHON ?= python3
 contract:
 	$(PYTHON) -m stapel_reviews._codegen --out docs
 	$(PYTHON) -m stapel_reviews._capabilities --out docs
-	$(PYTHON) -m stapel_tools.llms_txt . --out docs --budget 5000
+	$(PYTHON) -m stapel_tools.llms_txt . --out docs --budget 5400
 	$(PYTHON) -m stapel_tools.readme .
 
 # Drift gate: regenerate into a temp dir and diff against the committed docs/*.json.
@@ -40,7 +42,7 @@ contract-check:
 	@tmp=$$(mktemp -d); \
 	$(PYTHON) -m stapel_reviews._codegen --out "$$tmp" || { rm -rf "$$tmp"; exit 1; }; \
 	$(PYTHON) -m stapel_reviews._capabilities --out "$$tmp" || { rm -rf "$$tmp"; exit 1; }; \
-	$(PYTHON) -m stapel_tools.llms_txt . --out "$$tmp" --budget 5000 || { rm -rf "$$tmp"; exit 1; }; \
+	$(PYTHON) -m stapel_tools.llms_txt . --out "$$tmp" --budget 5400 || { rm -rf "$$tmp"; exit 1; }; \
 	rc=0; \
 	for f in schema.json flows.json errors.json capabilities.json llms.txt; do \
 		if ! diff -q "docs/$$f" "$$tmp/$$f" >/dev/null 2>&1; then \

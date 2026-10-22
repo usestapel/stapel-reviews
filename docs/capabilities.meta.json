@@ -96,7 +96,7 @@
   "surface": {
     "register_target_type": {
       "kind": "factory",
-      "intent": "Declare what may be reviewed — a type name plus its policy (who may review, pre/post moderation, one-per-author, owner responses, the two host callback names) — from an AppConfig.ready() or a test. The registry ships EMPTY, so until something registers a type every write is a 400; this and the STAPEL_REVIEWS[\"TARGET_TYPES\"] setting (which this layer merges over) are the only two ways in, and both are the alternative to hand-rolling a \"what is reviewable\" branch in your own catalog. policy=None removes a type a lower layer provided."
+      "intent": "Declare what may be reviewed — a type name plus its policy (who may review, pre/post moderation, one-per-author, owner responses, self-review, the host callback names) — from an AppConfig.ready() or a test. The registry ships EMPTY, so until something registers a type every write is a 400; this and the STAPEL_REVIEWS[\"TARGET_TYPES\"] setting (which this layer merges over) are the only two ways in, and both are the alternative to hand-rolling a \"what is reviewable\" branch in your own catalog. policy=None removes a type a lower layer provided."
     },
     "reset_target_types": {
       "kind": "factory",
@@ -126,10 +126,18 @@
     },
     "check_can_moderate": {
       "kind": "predicate",
-      "intent": "\"May this actor moderate or respond to reviews of this target\" — the same host-callback dispatch as check_can_review, but fail-CLOSED: a policy naming no can_moderate callback denies everyone rather than quietly opening the moderation queue. Ask it before rendering any moderation or owner-reply affordance, and do not re-derive ownership from your own models — the module authorized the write off this exact answer, so a second opinion only produces a button that 403s.",
+      "intent": "\"May this actor moderate (hide/publish, see pending and hidden) reviews of this target\" — the same host-callback dispatch as check_can_review, but fail-CLOSED: a policy naming no can_moderate callback denies everyone rather than quietly opening the moderation queue. Ask it before rendering any moderation affordance (an owner-reply button asks check_can_respond), and do not re-derive ownership from your own models — the module authorized the write off this exact answer, so a second opinion only produces a button that 403s.",
       "instead_of": [
         "stapel_core.comm.call"
       ]
+    },
+    "check_can_respond": {
+      "kind": "predicate",
+      "intent": "\"May this actor write the owner's reply to this review\" — the policy's can_respond callback when it names one, otherwise the target owner (the review's stamped owner_key equals the actor id) and nobody else. Never asks can_moderate: granting sellers replies must not grant them hide/publish. Reach for it in a host view that offers a reply button, instead of re-deriving ownership."
+    },
+    "is_owner": {
+      "kind": "predicate",
+      "intent": "Whether an actor is the stamped owner of a target (owner_key equals the actor id; an empty owner_key owns nothing). The one ownership comparison behind the default responder and the allow_self_review refusal — use it rather than comparing ids by hand, where str vs UUID makes the check silently false."
     },
     "resolve_owner_key": {
       "kind": "factory",

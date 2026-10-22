@@ -38,12 +38,14 @@ DEFAULTS = {
     # merged OVER the (empty) built-ins; None removes a type. A policy dict:
     #   {
     #     "can_review":   "comm.function.name" | None,  # author eligibility
-    #     "can_moderate": "comm.function.name" | None,  # moderate + respond
+    #     "can_moderate": "comm.function.name" | None,  # hide/publish, include=all
+    #     "can_respond":  "comm.function.name" | None,  # owner reply (None: target owner)
     #     "moderation":   "pre" | "post",               # overrides MODERATION_DEFAULT
     #     "one_per_author": bool,                        # single review per author
     #     "allow_response": bool,                        # overrides RESPONSES
+    #     "allow_self_review": bool,                     # default False
     #   }
-    # Every key but the two callbacks has a module-level default (below);
+    # Every key but the callbacks has a module-level default (below);
     # a type may omit them and inherit. See registry.resolve_policy.
     "TARGET_TYPES": {},
     # Moderation axis. "post" (default): a review is published immediately and

@@ -58,8 +58,9 @@ def handle_user_merged(event):
     cascade.
 
     **The one-per-author collision.** ``one_per_author`` is a per-target-type
-    policy, not a database constraint, so a blind reassignment cannot raise —
-    it can only leave a state ``create_review`` would have refused: two
+    policy; the database holds it only for rows stamped while the policy was
+    on (``rev_one_per_author``). A blind reassignment would either raise on
+    that constraint or leave a state ``create_review`` would have refused: two
     reviews by one author on one target. Where the policy is on and BOTH
     accounts reviewed the same ``(target_type, target_key)``, **the
     survivor's review wins** — it is the one that carries the account's own
@@ -175,8 +176,14 @@ def _drop_duplicate_reviews(from_user_id, into_user_id) -> int:
         except UnknownTargetType:
             # The host de-registered the type. No policy to uphold, and
             # guessing one would delete a person's review on a hunch.
-            continue
-        if not policy["one_per_author"]:
+            policy = None
+        if policy is None or not policy["one_per_author"]:
+            # Both rows stay. Rows written while the policy was on carry the
+            # rev_one_per_author flag; the guest's loses it so the move to the
+            # survivor cannot collide with the survivor's flagged row.
+            Review.objects.filter(pk=review.pk, unique_per_author=True).update(
+                unique_per_author=False
+            )
             continue
         was_visible = review.status in VISIBLE_STATUSES
         # Deleted through the queryset, not ``review.delete()``: the instance

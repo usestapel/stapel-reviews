@@ -1,8 +1,8 @@
-# stapel-reviews 0.7.0
+# stapel-reviews 0.8.0
 
 Target-generic reviews and ratings: an author rates and reviews an opaque host-defined target (target_type + target_key), driven by a per-target-type policy registry (who may review, pre/post moderation, one-review-per-author, owner responses) whose authority questions are answered by host comm callbacks. The module owns the per-target aggregate (avg/count over published reviews) and emits a generic visibility-change fact carrying it, so a host catalog maintains its own rating projection without calling back.
 
-Contract: axes 2 · surface 19 · extension points 11 · operations 6 · error codes 54.
+Contract: axes 2 · surface 21 · extension points 11 · operations 6 · error codes 56.
 Generated from docs/capabilities.json by `stapel-llms-txt` — do not edit; drift-gated by `make contract-check`.
 
 ## Configuration axes — what a product switches on
@@ -24,10 +24,14 @@ This is the answer to "does Stapel already have something for X?". `instead of` 
 ### predicate
 - check_can_moderate — stapel_reviews.registry.check_can_moderate
   instead of: stapel_core.comm.call
-  "May this actor moderate or respond to reviews of this target" — the same host-callback dispatch as check_can_review, but fail-CLOSED: a policy naming no can_moderate callback denies everyone rather than quietly opening the moderation queue. Ask it before rendering any moderation or owner-reply affordance, and do not re-derive ownership from your own models — the module authorized the write off this exact answer, so a second opinion only produces a button that 403s.
+  "May this actor moderate (hide/publish, see pending and hidden) reviews of this target" — the same host-callback dispatch as check_can_review, but fail-CLOSED: a policy naming no can_moderate callback denies everyone rather than quietly opening the moderation queue. Ask it before rendering any moderation affordance (an owner-reply button asks check_can_respond), and do not re-derive ownership from your own models — the module authorized the write off this exact answer, so a second opinion only produces a button that 403s.
+- check_can_respond — stapel_reviews.registry.check_can_respond
+  "May this actor write the owner's reply to this review" — the policy's can_respond callback when it names one, otherwise the target owner (the review's stamped owner_key equals the actor id) and nobody else. Never asks can_moderate: granting sellers replies must not grant them hide/publish. Reach for it in a host view that offers a reply button, instead of re-deriving ownership.
 - check_can_review — stapel_reviews.registry.check_can_review
   instead of: stapel_core.comm.call
   "May this author review this target right now" — resolves the policy's can_review callback name and asks the host over comm, where no callback means unrestricted. This is the call for a view or a template that wants to show or hide the review form before anyone types anything; use it rather than dispatching the callback name yourself, because the None-means-open convention and the deliberate refusal to fail open on a broken gate both live here, and a second implementation of them will not agree with the one guarding the write.
+- is_owner — stapel_reviews.registry.is_owner
+  Whether an actor is the stamped owner of a target (owner_key equals the actor id; an empty owner_key owns nothing). The one ownership comparison behind the default responder and the allow_self_review refusal — use it rather than comparing ids by hand, where str vs UUID makes the check silently false.
 ### factory
 - aggregate — stapel_reviews.services.aggregate
   instead of: stapel_reviews.models.Review.objects.aggregate
@@ -59,7 +63,7 @@ This is the answer to "does Stapel already have something for X?". `instead of` 
   instead of: stapel_reviews.models.Review.objects.get
   A review's content in the shape a moderation module screens and renders a case card from. Reach for it (as the reviews.moderation_content Function) instead of putting review bodies on the bus: content read when it is looked at has not gone stale, and does not sit in a retention-free outbox.
 - register_target_type — stapel_reviews.registry.register_target_type
-  Declare what may be reviewed — a type name plus its policy (who may review, pre/post moderation, one-per-author, owner responses, the two host callback names) — from an AppConfig.ready() or a test. The registry ships EMPTY, so until something registers a type every write is a 400; this and the STAPEL_REVIEWS["TARGET_TYPES"] setting (which this layer merges over) are the only two ways in, and both are the alternative to hand-rolling a "what is reviewable" branch in your own catalog. policy=None removes a type a lower layer provided.
+  Declare what may be reviewed — a type name plus its policy (who may review, pre/post moderation, one-per-author, owner responses, self-review, the host callback names) — from an AppConfig.ready() or a test. The registry ships EMPTY, so until something registers a type every write is a 400; this and the STAPEL_REVIEWS["TARGET_TYPES"] setting (which this layer merges over) are the only two ways in, and both are the alternative to hand-rolling a "what is reviewable" branch in your own catalog. policy=None removes a type a lower layer provided.
 - reset_target_types — stapel_reviews.registry.reset_target_types
   Drop the runtime registrations, leaving the settings layer untouched — a TEST lever, and the reason the runtime overrides are kept in their own dict: reviews' own conftest calls it between cases so a type registered by one test cannot leak into the next. Product code that finds itself calling this is undoing a registration that belongs in STAPEL_REVIEWS["TARGET_TYPES"], where it is declarative and survives a process reload.
 - resolve_owner_key — stapel_reviews.registry.resolve_owner_key
@@ -109,7 +113,7 @@ Paths are relative to `/reviews/api/v1/`.
 - POST /reviews/{review_id}/response — reviews_api_v1_reviews_response_create
 - GET /reviews — reviews_api_v1_reviews_retrieve
 
-## Error codes (54) — the StapelError envelope
+## Error codes (56) — the StapelError envelope
 Render `t(code, params)`; branch UX on the remediation. Localized text lives in docs/errors.<lang>.md, not here.
 - error.400.bad_request [400] fix_input
 - error.400.captcha_invalid [400] retry
@@ -143,7 +147,9 @@ Render `t(code, params)`; branch UX on the remediation. Localized text lives in 
 - error.403.network_blocked [403] contact_support
 - error.403.reviews_anonymous_not_allowed [403] retry
 - error.403.reviews_cannot_moderate [403] retry
+- error.403.reviews_cannot_respond [403] retry
 - error.403.reviews_cannot_review [403] retry
+- error.403.reviews_self_review [403] retry
 - error.403.verification_enrollment_required [403] verify
 - error.403.verification_required [403] verify
 - error.404.ad_not_found [404] retry

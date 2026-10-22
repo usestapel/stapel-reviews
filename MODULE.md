@@ -17,8 +17,10 @@
   (and/or the runtime `register_target_type()` API). This is the flagship seam.
 - **Per-type policy** — each type's policy decides: who may review
   (`can_review` comm callback), pre/post moderation, one-review-per-author,
-  whether owner responses are allowed (`allow_response`), and who may
-  moderate/respond (`can_moderate` comm callback). A review on a *seller* is not
+  whether owner responses are allowed (`allow_response`), who may moderate
+  (`can_moderate` comm callback), who may respond (`can_respond`, else the
+  target owner), and whether an owner may review their own target
+  (`allow_self_review`, default off). A review on a *seller* is not
   a review on a *listing* — the policy is where that difference lives.
 - **Module-owned aggregate + projection emits** — the module owns `avg`/`count`
   over *published* reviews per `(target_type, target_key)`, and on every
@@ -53,26 +55,44 @@ tests). A policy is a plain dict:
 ```python
 {
     "can_review":     "comm.function.name" | None,   # author eligibility
-    "can_moderate":   "comm.function.name" | None,   # moderate + respond
+    "can_moderate":   "comm.function.name" | None,   # hide/publish + include=all
+    "can_respond":    "comm.function.name" | None,   # owner reply; None = target owner
     "owner_key_for":  callable | "comm.function.name" | None,  # who owns the target
     "moderation":     "pre" | "post",                # else MODERATION_DEFAULT
-    "one_per_author": bool,                          # default False
+    "one_per_author": bool,                          # default False (DB-held)
     "allow_response": bool,                          # else RESPONSES
+    "allow_self_review": bool,                       # default False
 }
 ```
 
 `registry.resolve_policy(target_type)` fills the module-level defaults and
 raises `UnknownTargetType` for an unregistered type (a 400 at the API).
 
-### 2. Domain callbacks — `can_review` / `can_moderate` (host comm Functions)
+### 2. Domain callbacks — `can_review` / `can_moderate` / `can_respond` (host comm Functions)
 
-The two `can_*` policy entries are **comm Function names the host registers**.
+The `can_*` policy entries are **comm Function names the host registers**.
 The module *calls* the host and reads a boolean out:
 
 - `can_review(author_id, target_type, target_key) -> bool | {"allowed": bool}`
   — no callback means **unrestricted** (any authenticated author).
 - `can_moderate(actor_id, target_type, target_key) -> bool | {"allowed": bool}`
-  — no callback is **fail-closed** (moderation/response denied).
+  — hide/publish and `include=all`; no callback is **fail-closed**.
+- `can_respond(actor_id, target_type, target_key, owner_key) -> bool | {"allowed": bool}`
+  — the owner's reply. No callback means **the target owner** (the review's
+  stamped `owner_key` equals the actor's id) and nobody else; `can_moderate` is
+  never asked, so letting sellers reply does not let them hide reviews.
+  Refusal is `403 error.403.reviews_cannot_respond`.
+
+`allow_self_review` (default `False`) refuses a review whose author is the
+target's stamped owner with `403 error.403.reviews_self_review`. Both rules
+read `owner_key`, so they apply to types with an `owner_key_for` resolver;
+`reviews.owner_is_target` is a ready-made resolver for a target that IS its
+owner (a profile keyed by user id).
+
+`one_per_author` is held by the database as well as by the service's read: a
+review written under it carries `unique_per_author=True`, and the partial
+unique constraint `rev_one_per_author` refuses a concurrent second row, which
+the API answers as `400 error.400.reviews_duplicate_review`.
 
 The module never imports a host model — ownership and eligibility are the
 host's to answer off the opaque `(target_type, target_key)` handle. The call is

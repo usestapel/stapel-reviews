@@ -284,11 +284,27 @@
     "owner": "stapel_reviews"
   },
   {
+    "code": "error.403.reviews_cannot_respond",
+    "status": 403,
+    "params": [],
+    "remediation": "retry",
+    "en": "You are not allowed to respond to reviews of this target",
+    "owner": "stapel_reviews"
+  },
+  {
     "code": "error.403.reviews_cannot_review",
     "status": 403,
     "params": [],
     "remediation": "retry",
     "en": "You are not allowed to review this target",
+    "owner": "stapel_reviews"
+  },
+  {
+    "code": "error.403.reviews_self_review",
+    "status": 403,
+    "params": [],
+    "remediation": "retry",
+    "en": "You cannot review something you own",
     "owner": "stapel_reviews"
   },
   {

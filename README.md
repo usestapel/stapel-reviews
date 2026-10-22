@@ -24,13 +24,13 @@ pip install stapel-reviews
 
 | Fact | Value |
 |---|---|
-| Version | `0.7.0` |
+| Version | `0.8.0` |
 | Python | `>=3.11` (3.11, 3.12, 3.13, 3.14) |
 | HTTP operations | 6 |
 | Config axes | 2 |
-| Usage surface | 19 |
+| Usage surface | 21 |
 | Extension points | 11 |
-| Error codes | 54 |
+| Error codes | 56 |
 | Fleet dependencies | [`stapel-auth`](https://github.com/usestapel/stapel-auth) (optional) · [`stapel-core`](https://github.com/usestapel/stapel-core) |
 
 ## Documentation
@@ -66,8 +66,9 @@ path("reviews/", include("stapel_reviews.urls"))
   model; the module is domain-blind.
 - **Policy** — per target type: who may review (`can_review` comm callback),
   pre/post moderation, one-review-per-author, whether owner responses are
-  allowed (`allow_response`), who may moderate/respond (`can_moderate` comm
-  callback), and — optionally — who *owns* a target (`owner_key_for`).
+  allowed (`allow_response`), who may moderate (`can_moderate` comm callback),
+  who may respond (`can_respond`, else the target owner), self-review
+  (`allow_self_review`, default off), and — optionally — who *owns* a target (`owner_key_for`).
 - **Aggregate** — the module owns `avg`/`count` over *published* reviews per
   target, and emits a generic fact carrying it on every visibility change, so a
   host catalog maintains its own rating **projection** (§10) without calling
@@ -82,7 +83,7 @@ STAPEL_REVIEWS = {
     "TARGET_TYPES": {
         "seller": {
             "can_review": "marketplace.buyer_of_seller",   # host comm Function
-            "can_moderate": "marketplace.is_seller_owner",
+            "can_respond": "marketplace.is_seller_owner",
             "moderation": "post",
             "one_per_author": True,
             "allow_response": True,
@@ -139,7 +140,9 @@ setting, or env var — resolved lazily):
 | Function | `reviews.moderation_content` | `{review_id}` -> `{text, title, language, media, author_id, url, …}` |
 | Consume | `moderation.completed` | `{target_type, target_key, decision, …}` — a platform verdict, applied to the review as the system actor |
 | Callback (host) | policy `can_review` | `{author_id, target_type, target_key}` -> bool — the host answers |
-| Callback (host) | policy `can_moderate` | `{actor_id, target_type, target_key}` -> bool — the host answers |
+| Callback (host) | policy `can_moderate` | `{actor_id, target_type, target_key}` -> bool — hide/publish, `include=all` |
+| Callback (host) | policy `can_respond` | `{actor_id, target_type, target_key, owner_key}` -> bool — owner reply; unset = the target owner |
+| Function | `reviews.owner_is_target` | `{target_type, target_key}` -> `{owner_key: target_key}` — a ready `owner_key_for` for a target that is its owner |
 | Callback (host) | policy `owner_key_for` | `target_key` -> `str \| None` (callable), or a comm Function `{target_type, target_key}` -> owner key — optional |
 
 ### Host rating projection

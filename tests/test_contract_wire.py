@@ -104,8 +104,9 @@ V1 = "/reviews/api/v1"
 #: reviewed, and so does the gate, through the same door.
 TARGET_TYPE = "seller"
 
-#: The comm Function name the type's ``can_moderate`` policy points at. The
-#: module CALLS the host to ask who may moderate or reply; the gate stands
+#: The comm Function name the type's ``can_moderate`` and ``can_respond``
+#: policies point at. The module CALLS the host to ask who may moderate or
+#: reply; the gate stands
 #: that call up rather than reaching around it, so everything on this side of
 #: the seam runs for real.
 CAN_MODERATE = "wire.contract.can_moderate"
@@ -121,7 +122,9 @@ def reviews_settings(**extra):
     contract declares. This module's own suites pin the throttling behaviour.
     """
     config = {
-        "TARGET_TYPES": {TARGET_TYPE: {"can_moderate": CAN_MODERATE}},
+        "TARGET_TYPES": {
+            TARGET_TYPE: {"can_moderate": CAN_MODERATE, "can_respond": CAN_MODERATE}
+        },
         "LIST_THROTTLE": None,
         "AGGREGATE_THROTTLE": None,
     }
@@ -131,7 +134,7 @@ def reviews_settings(**extra):
 
 def target_types(**policy):
     """``reviews_settings`` with the one registered type's policy adjusted."""
-    merged = {"can_moderate": CAN_MODERATE}
+    merged = {"can_moderate": CAN_MODERATE, "can_respond": CAN_MODERATE}
     merged.update(policy)
     return reviews_settings(TARGET_TYPES={TARGET_TYPE: merged})
 

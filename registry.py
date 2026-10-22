@@ -10,11 +10,13 @@ A *policy* is a plain dict per type:
 
     {
         "can_review":     "comm.function.name" | None,   # author eligibility
-        "can_moderate":   "comm.function.name" | None,   # moderate + respond
+        "can_moderate":   "comm.function.name" | None,   # hide/publish + include=all
+        "can_respond":    "comm.function.name" | None,   # owner reply; None = target owner
         "owner_key_for":  callable | "comm.function.name" | None,  # owner of a target
         "moderation":     "pre" | "post",                # else MODERATION_DEFAULT
         "one_per_author": bool,                          # default False
         "allow_response": bool,                          # else RESPONSES
+        "allow_self_review": bool,                       # default False
     }
 
 The two ``can_*`` entries are **comm Function names** — the module *calls* the
@@ -22,8 +24,20 @@ host (``stapel_core.comm.call(name, {...})``) and reads a boolean out of the
 result. It never imports a host model: authorization and ownership are the
 host's to answer, off an opaque ``(target_type, target_key)`` handle. A policy
 with ``can_review=None`` means "anyone authenticated may review"; a policy with
-``can_moderate=None`` means "no one may moderate or respond via the API"
-(fail-closed — an unset moderator gate never silently opens).
+``can_moderate=None`` means "no one may moderate via the API" (fail-closed —
+an unset moderator gate never silently opens).
+
+Responding is a separate question with a separate answer: ``can_respond``.
+Letting a seller reply to reviews must not let the seller hide them, so the
+two never share a callback. A policy with ``can_respond=None`` lets the
+target's OWNER respond — the review's stamped ``owner_key`` (see below)
+compared with the actor's id — and nobody else; a type with no
+``owner_key_for`` resolver therefore has no responder until it names a
+``can_respond`` Function.
+
+``allow_self_review`` (default ``False``) refuses a review whose author is the
+target's owner (``owner_key == author id``): a seller rating their own listing
+or a user rating their own profile.
 
 ``owner_key_for`` is the third, optional host answer: "who OWNS this target?".
 It is asked once, when the review is written, and its answer is denormalised
@@ -76,8 +90,9 @@ def resolve_policy(target_type: str) -> dict:
     defaults filled in), or raise :class:`UnknownTargetType`.
 
     Every key the services rely on is guaranteed present on the returned dict:
-    ``can_review``, ``can_moderate``, ``owner_key_for``, ``moderation``,
-    ``one_per_author``, ``allow_response``.
+    ``can_review``, ``can_moderate``, ``can_respond``, ``owner_key_for``,
+    ``moderation``, ``one_per_author``, ``allow_response``,
+    ``allow_self_review``.
     """
     from .conf import reviews_settings
 
@@ -88,10 +103,12 @@ def resolve_policy(target_type: str) -> dict:
     return {
         "can_review": raw.get("can_review"),
         "can_moderate": raw.get("can_moderate"),
+        "can_respond": raw.get("can_respond"),
         "owner_key_for": raw.get("owner_key_for"),
         "moderation": raw.get("moderation", reviews_settings.MODERATION_DEFAULT),
         "one_per_author": bool(raw.get("one_per_author", False)),
         "allow_response": bool(raw.get("allow_response", reviews_settings.RESPONSES)),
+        "allow_self_review": bool(raw.get("allow_self_review", False)),
     }
 
 
@@ -169,8 +186,9 @@ def resolve_owner_key(policy: dict, *, target_type: str, target_key: str) -> str
 
 def check_can_moderate(policy: dict, *, actor_id, target_type: str, target_key: str) -> bool:
     """Ask the type's ``can_moderate`` callback whether ``actor_id`` may
-    moderate (hide/publish) or respond to reviews of the target. No callback
-    (``None``) is **fail-closed** — moderation is denied rather than open."""
+    moderate (hide/publish, see pending/hidden) reviews of the target. No
+    callback (``None``) is **fail-closed** — moderation is denied rather than
+    open. Responding is :func:`check_can_respond`, never this gate."""
     name = policy.get("can_moderate")
     if not name:
         return False
@@ -183,6 +201,42 @@ def check_can_moderate(policy: dict, *, actor_id, target_type: str, target_key: 
                 "actor_id": str(actor_id),
                 "target_type": target_type,
                 "target_key": target_key,
+            },
+        )
+    )
+
+
+def is_owner(owner_key, actor_id) -> bool:
+    """``True`` when ``actor_id`` is the stamped owner of a target. An empty
+    owner key ("this type registers no resolver") owns nothing."""
+    key = "" if owner_key is None else str(owner_key)
+    return bool(key) and actor_id is not None and key == str(actor_id)
+
+
+def check_can_respond(
+    policy: dict, *, actor_id, target_type: str, target_key: str, owner_key: str
+) -> bool:
+    """Whether ``actor_id`` may write the owner's reply to a review.
+
+    The type's ``can_respond`` callback answers when it is named (called with
+    ``{"actor_id", "target_type", "target_key", "owner_key"}``). Without one,
+    the target's owner may respond — ``owner_key`` is the review's stamped
+    owner — and nobody else. ``can_moderate`` is never asked: the right to
+    reply is not the right to hide.
+    """
+    name = policy.get("can_respond")
+    if not name:
+        return is_owner(owner_key, actor_id)
+    from stapel_core.comm import call
+
+    return _read_bool(
+        call(
+            name,
+            {
+                "actor_id": str(actor_id),
+                "target_type": target_type,
+                "target_key": target_key,
+                "owner_key": owner_key or "",
             },
         )
     )

@@ -104,6 +104,35 @@ class TestAnonymousReads:
         assert resp.status_code == 200
         assert resp.data["count"] == 0
 
+    def test_anon_include_all_never_reaches_the_host_callback(
+        self, settings, api_client, user
+    ):
+        """An anonymous pk is None; the host callback must not be asked about
+        actor "None" (a UUID-parsing callback would raise into a 500)."""
+        from stapel_core.comm import register_function
+
+        asked = []
+        register_function("fake.strict_mod", lambda p: asked.append(p) or False)
+        settings.STAPEL_REVIEWS = {
+            "TARGET_TYPES": {"seller": {"can_moderate": "fake.strict_mod"}}
+        }
+        services.create_review(target_type="seller", target_key="s1", author=user, rating=1)
+        resp = api_client.get(
+            "/reviews/api/v1/reviews",
+            {"target_type": "seller", "target_key": "s1", "include": "all"},
+        )
+        assert resp.status_code == 200
+        assert asked == []
+
+    def test_overlong_target_key_is_400(self, settings, auth_client):
+        settings.STAPEL_REVIEWS = {"TARGET_TYPES": {"seller": {}}}
+        resp = auth_client.post(
+            "/reviews/api/v1/reviews",
+            {"target_type": "seller", "target_key": "k" * 256, "rating": 5},
+            format="json",
+        )
+        assert resp.status_code == 400
+
     def test_anon_aggregate_200(self, settings, api_client, user):
         settings.STAPEL_REVIEWS = {"TARGET_TYPES": {"seller": {}}}
         services.create_review(target_type="seller", target_key="s1", author=user, rating=4)
@@ -244,9 +273,9 @@ class TestModerateAndRespondEndpoints:
         assert resp.status_code == 404
 
     def test_respond(self, settings, api_client, user, owner_user):
-        register_function("fake.can_mod", lambda p: True)
+        register_function("fake.can_respond", lambda p: True)
         settings.STAPEL_REVIEWS = {
-            "TARGET_TYPES": {"seller": {"can_moderate": "fake.can_mod", "allow_response": True}}
+            "TARGET_TYPES": {"seller": {"can_respond": "fake.can_respond", "allow_response": True}}
         }
         review = services.create_review(
             target_type="seller", target_key="s1", author=user, rating=5

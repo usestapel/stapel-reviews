@@ -29,7 +29,9 @@ from .errors import (
     ERR_400_UNKNOWN_TARGET_TYPE,
     ERR_403_ANONYMOUS_NOT_ALLOWED,
     ERR_403_CANNOT_MODERATE,
+    ERR_403_CANNOT_RESPOND,
     ERR_403_CANNOT_REVIEW,
+    ERR_403_SELF_REVIEW,
     ERR_404_REVIEW_NOT_FOUND,
     ERR_409_ALREADY_RESPONDED,
 )
@@ -349,7 +351,10 @@ class ReviewListCreateView(SerializerSeamMixin, APIView):
                 return StapelErrorResponse(400, ERR_400_UNKNOWN_TARGET_TYPE)
 
             include_all = False
-            if wants_all:
+            # An anonymous caller is never a moderator, and its pk is None —
+            # handing the host callback actor_id "None" makes a callback that
+            # parses a UUID raise (a 500 on a public read).
+            if wants_all and request.user.is_authenticated:
                 # Only a moderator/owner of the target may see pending/hidden.
                 # A non-moderator asking for "all" is silently narrowed to
                 # published (no leak, no error) — the type's can_moderate
@@ -402,6 +407,8 @@ class ReviewListCreateView(SerializerSeamMixin, APIView):
             return StapelErrorResponse(400, ERR_400_DUPLICATE_REVIEW)
         except services.NotAllowedToReview:
             return StapelErrorResponse(403, ERR_403_CANNOT_REVIEW)
+        except services.SelfReview:
+            return StapelErrorResponse(403, ERR_403_SELF_REVIEW)
         response_cls = self.get_response_serializer_class()
         return StapelResponse(
             response_cls(review_to_dto(review)), status=status.HTTP_201_CREATED
@@ -442,8 +449,9 @@ class ReviewModerateView(SerializerSeamMixin, APIView):
 
 @extend_schema(tags=["Reviews"])
 class ReviewRespondView(SerializerSeamMixin, APIView):
-    """Attach the target owner's single reply to a review (owner-only via the
-    target type's can_moderate callback; gated by the allow_response policy)."""
+    """Attach the target owner's single reply to a review (the target type's
+    can_respond callback, or the target owner when it names none; gated by
+    the allow_response policy)."""
 
     permission_classes = [permissions.IsAuthenticated]
     request_serializer_class = RespondRequestSerializer
@@ -463,8 +471,8 @@ class ReviewRespondView(SerializerSeamMixin, APIView):
             services.respond(review, author=request.user, body=data.body)
         except services.ResponseNotAllowed:
             return StapelErrorResponse(400, ERR_400_RESPONSE_NOT_ALLOWED)
-        except services.NotAllowedToModerate:
-            return StapelErrorResponse(403, ERR_403_CANNOT_MODERATE)
+        except services.NotAllowedToRespond:
+            return StapelErrorResponse(403, ERR_403_CANNOT_RESPOND)
         except services.AlreadyResponded:
             return StapelErrorResponse(409, ERR_409_ALREADY_RESPONDED)
         review = Review.objects.select_related("response").filter(id=review.id).first()

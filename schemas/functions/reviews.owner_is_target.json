@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "reviews.owner_is_target",
+  "description": "A ready-made owner_key_for resolver for target types whose target IS its owner (a user profile keyed by user id): answers the target_key itself as the owner key.",
+  "type": "object",
+  "required": ["target_type", "target_key"],
+  "properties": {
+    "target_type": { "type": "string" },
+    "target_key":  { "type": "string" }
+  },
+  "additionalProperties": false
+}

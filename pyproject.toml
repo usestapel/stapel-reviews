@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stapel-reviews"
-version = "0.7.0"
+version = "0.8.0"
 description = "Target-generic reviews and ratings for the Stapel framework"
 readme = "README.md"
 license = { text = "MIT" }
@@ -24,9 +24,9 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    # Floor: 0.26.0 emits docs/errors.json with the `owner` field the
-    # committed artifact and its drift gate require.
-    "stapel-core>=0.26.0,<1.0",
+    # Floor: 0.85.1 — core's provider bridge answers gdpr.erasure.requested
+    # for this module's GDPRProvider in a split fleet, once per part.
+    "stapel-core>=0.85.1,<1.0",
 ]
 
 [project.urls]

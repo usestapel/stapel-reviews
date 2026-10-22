@@ -8,7 +8,9 @@
   "error.400.reviews_unknown_target_type": "Неизвестный тип объекта отзыва",
   "error.403.reviews_anonymous_not_allowed": "Гостевая учётная запись не может оставить отзыв",
   "error.403.reviews_cannot_moderate": "Вам нельзя модерировать отзывы об этом объекте",
+  "error.403.reviews_cannot_respond": "Вам нельзя отвечать на отзывы об этом объекте",
   "error.403.reviews_cannot_review": "Вам нельзя оставить отзыв об этом объекте",
+  "error.403.reviews_self_review": "Нельзя оставить отзыв о том, что принадлежит вам",
   "error.404.reviews_review_not_found": "Отзыв не найден",
   "error.409.reviews_already_responded": "На этот отзыв уже есть ответ"
 }

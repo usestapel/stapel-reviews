@@ -199,7 +199,7 @@
     "/reviews/api/v1/reviews/{review_id}/response": {
       "post": {
         "operationId": "reviews_api_v1_reviews_response_create",
-        "description": "Attach the target owner's single reply to a review (owner-only via the\ntarget type's can_moderate callback; gated by the allow_response policy).\n\n**Permissions:** `IsAuthenticated`",
+        "description": "Attach the target owner's single reply to a review (the target type's\ncan_respond callback, or the target owner when it names none; gated by\nthe allow_response policy).\n\n**Permissions:** `IsAuthenticated`",
         "parameters": [
           {
             "in": "path",
@@ -474,11 +474,13 @@
         "properties": {
           "target_type": {
             "type": "string",
-            "description": "The host-registered target-type key"
+            "description": "The host-registered target-type key",
+            "maxLength": 64
           },
           "target_key": {
             "type": "string",
-            "description": "Opaque host-owned target identifier"
+            "description": "Opaque host-owned target identifier",
+            "maxLength": 255
           },
           "rating": {
             "type": "integer",

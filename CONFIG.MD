@@ -38,8 +38,9 @@ anonymous users has none to reject, and one that does gets the wall it already
 believed it had. Setting it to `true` is the explicit statement "guests may
 review here"; a review from an account nobody can trace is worth little as
 social proof, so it should be said out loud. Moderation and owner responses are
-NOT gated by it — both already fail closed behind the target type's
-`can_moderate` callback.
+NOT gated by it — moderation fails closed behind the target type's
+`can_moderate` callback, and a response needs `can_respond` (or target
+ownership).
 
 ### TARGET_TYPES → `owner_key_for`
 

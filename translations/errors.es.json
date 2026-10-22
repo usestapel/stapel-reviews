@@ -8,7 +8,9 @@
   "error.400.reviews_unknown_target_type": "Tipo de objeto de reseña desconocido",
   "error.403.reviews_anonymous_not_allowed": "Una cuenta de invitado no puede dejar reseñas",
   "error.403.reviews_cannot_moderate": "No puedes moderar las reseñas de este objeto",
+  "error.403.reviews_cannot_respond": "No puedes responder a las reseñas de este objeto",
   "error.403.reviews_cannot_review": "No puedes dejar una reseña sobre este objeto",
+  "error.403.reviews_self_review": "No puedes reseñar algo que te pertenece",
   "error.404.reviews_review_not_found": "Reseña no encontrada",
   "error.409.reviews_already_responded": "Esta reseña ya tiene una respuesta"
 }

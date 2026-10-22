@@ -45,11 +45,12 @@ ARTIFACTS = TRIAD + ("capabilities.json", "llms.txt")
 # Raised from the generator's 4000 default (and kept identical in the Makefile,
 # which is the only other caller): 4500 when ALLOW_ANONYMOUS_WRITES brought an
 # eleventh error key, 5000 when the owner-key mechanism added three surface
-# entries and two extension points. Deliberate, per the fleet's other ceilings
+# entries and two extension points, 5400 when the split reply right and its
+# two refusal keys landed. Deliberate, per the fleet's other ceilings
 # (stapel-auth 8000, stapel-calendar 5000): the surface section is what an
 # agent reads to avoid rewriting a mechanism that already exists, so it is not
 # the thing to shorten for a handful of tokens.
-LLMS_TXT_BUDGET = "5000"
+LLMS_TXT_BUDGET = "5400"
 
 
 def _emit(out_dir: Path) -> None:

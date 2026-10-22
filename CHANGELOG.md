@@ -4,6 +4,67 @@ All notable changes to stapel-reviews are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.8.0] — 2026-10-22
+
+Minor (breaking): replying to a review is its own right. A type that let its
+owners reply by granting them `can_moderate` must name `can_respond` (or
+register `owner_key_for`) to keep replies; until then a reply answers 403.
+
+### Fixed — letting sellers reply no longer lets them hide reviews
+
+One `can_moderate` callback gated hide/publish, `include=all` AND the owner's
+reply, so a host that wanted sellers to answer reviews had to hand them the
+power to hide the negative ones. The policy gains **`can_respond`**
+(`{actor_id, target_type, target_key, owner_key}` -> bool). Without it, the
+target's owner may reply — the review's stamped `owner_key` equal to the
+actor's id — and nobody else; `can_moderate` is never asked. A refused reply
+is `403 error.403.reviews_cannot_respond` (en, ru, es), no longer
+`reviews_cannot_moderate`. `services.NotAllowedToRespond` subclasses
+`NotAllowedToModerate`, so in-process callers that catch the old class keep
+working.
+
+### Fixed — an owner cannot review their own target
+
+`owner_key` was resolved on write and never compared with the author, so a
+seller could rate their own listing five stars. New policy key
+**`allow_self_review`** (default `False`): a review whose author is the
+target's stamped owner is `403 error.403.reviews_self_review`.
+
+### Added — `reviews.owner_is_target`
+
+A ready-made `owner_key_for` comm resolver for a target that IS its owner (a
+user profile keyed by user id). Naming it gives the profile's user the reply
+and refuses their self-review — what the social composite's `profile` type
+needed: its `allow_response: True` had no usable responder.
+
+### Fixed — one review per author holds under a double click
+
+`one_per_author` was a read then an insert, so two concurrent creates both
+landed. A review written under the policy now carries `unique_per_author`, and
+the partial unique constraint `rev_one_per_author` refuses the second row,
+which the API answers as the usual `400 error.400.reviews_duplicate_review`
+(not a 500). Migration `0004` is expand-only: a column with a database default
+plus the constraint; existing rows get `False` and sit outside it, so historic
+duplicates cannot fail the migration. `user.merged` clears the flag on a
+guest row it keeps beside the survivor's, so a de-registered type cannot make
+the transfer collide.
+
+### Fixed — an erased review leaves the rating projection
+
+`GDPRProvider.delete` removed published reviews without a fact, so a host
+projecting the aggregate kept counting them. Each erased published review now
+emits `reviews.review.hidden` (reason `erased`) with the recomputed aggregate,
+inside the erasure's transaction. The stapel-core floor rises to 0.85.1, whose
+provider bridge answers `gdpr.erasure.requested` for this provider in a split
+fleet with one receipt per part.
+
+### Fixed — two 500s on the public surface
+
+`GET /reviews?include=all` from an anonymous caller asked the host callback
+about actor `"None"`; it is now narrowed to published without asking. A
+`target_key` over 255 characters (or `target_type` over 64) is a 400 at the
+serializer, not a `DataError` at the insert.
+
 ## [0.7.0] — 2026-09-11
 
 ### The reviews of a seller, not only the number
