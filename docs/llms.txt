@@ -1,8 +1,8 @@
-# stapel-reviews 0.8.0
+# stapel-reviews 0.8.1
 
 Target-generic reviews and ratings: an author rates and reviews an opaque host-defined target (target_type + target_key), driven by a per-target-type policy registry (who may review, pre/post moderation, one-review-per-author, owner responses) whose authority questions are answered by host comm callbacks. The module owns the per-target aggregate (avg/count over published reviews) and emits a generic visibility-change fact carrying it, so a host catalog maintains its own rating projection without calling back.
 
-Contract: axes 2 · surface 21 · extension points 11 · operations 6 · error codes 56.
+Contract: axes 2 · surface 21 · extension points 11 · operations 6 · error codes 57.
 Generated from docs/capabilities.json by `stapel-llms-txt` — do not edit; drift-gated by `make contract-check`.
 
 ## Configuration axes — what a product switches on
@@ -113,7 +113,7 @@ Paths are relative to `/reviews/api/v1/`.
 - POST /reviews/{review_id}/response — reviews_api_v1_reviews_response_create
 - GET /reviews — reviews_api_v1_reviews_retrieve
 
-## Error codes (56) — the StapelError envelope
+## Error codes (57) — the StapelError envelope
 Render `t(code, params)`; branch UX on the remediation. Localized text lives in docs/errors.<lang>.md, not here.
 - error.400.bad_request [400] fix_input
 - error.400.captcha_invalid [400] retry
@@ -138,6 +138,7 @@ Render `t(code, params)`; branch UX on the remediation. Localized text lives in 
 - error.400.reviews_response_not_allowed [400] fix_input
 - error.400.reviews_too_many_owner_keys [400] fix_input {max}
 - error.400.reviews_unknown_target_type [400] fix_input
+- error.400.too_many_ids [400] fix_input {requested,limit}
 - error.400.validation_error [400] fix_input
 - error.400.verification_failed [400] verify
 - error.400.verification_invalid_factor [400] verify
@@ -167,7 +168,7 @@ Render `t(code, params)`; branch UX on the remediation. Localized text lives in 
 - error.422.unprocessable_entity [422] wait_and_retry
 - error.423.locked [423] wait_and_retry
 - error.423.verification_locked [423] wait_and_retry
-- error.429.rate_limit [429] wait_and_retry {retry_after_minutes}
+- error.429.rate_limit [429] wait_and_retry {retry_after_display,retry_after,retry_after_minutes}
 - error.429.too_many_requests [429] wait_and_retry
 - error.500.internal [500] contact_support
 - error.503.mandate_unavailable [503] retry

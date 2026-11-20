@@ -24,13 +24,13 @@ pip install stapel-reviews
 
 | Fact | Value |
 |---|---|
-| Version | `0.8.0` |
+| Version | `0.8.1` |
 | Python | `>=3.11` (3.11, 3.12, 3.13, 3.14) |
 | HTTP operations | 6 |
 | Config axes | 2 |
 | Usage surface | 21 |
 | Extension points | 11 |
-| Error codes | 56 |
+| Error codes | 57 |
 | Fleet dependencies | [`stapel-auth`](https://github.com/usestapel/stapel-auth) (optional) · [`stapel-core`](https://github.com/usestapel/stapel-core) |
 
 ## Documentation

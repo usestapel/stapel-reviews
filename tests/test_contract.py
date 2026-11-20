@@ -41,7 +41,7 @@ DOCS = REPO / "docs"
 TRIAD = ("schema.json", "flows.json", "errors.json")
 # The fifth artifact (badge-canon §3): docs/llms.txt, rendered from
 # docs/capabilities.json (+schema/errors/flows) by stapel_tools.llms_txt.
-ARTIFACTS = TRIAD + ("capabilities.json", "llms.txt")
+ARTIFACTS = TRIAD + ("schema.v2.json", "capabilities.json", "llms.txt")
 # Raised from the generator's 4000 default (and kept identical in the Makefile,
 # which is the only other caller): 4500 when ALLOW_ANONYMOUS_WRITES brought an
 # eleventh error key, 5000 when the owner-key mechanism added three surface
